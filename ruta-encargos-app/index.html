@@ -381,8 +381,10 @@
         <div class="formgrid">
           <label class="field span2">Teléfono<input type="tel" id="mTelefono"></label>
           <label class="field span2">Nombre<input type="text" id="mNombre"></label>
-          <label class="field">Barrio<input type="text" id="mBarrio"></label>
-          <label class="field">Municipio<input type="text" id="mMunicipio"></label>
+          <label class="field">Barrio 📋<input type="text" id="mBarrio" list="barriosList" placeholder="Elige uno existente o escribe uno nuevo"></label>
+          <label class="field">Municipio 📋<input type="text" id="mMunicipio" list="municipiosList" placeholder="Elige uno existente o escribe uno nuevo"></label>
+          <datalist id="barriosList"></datalist>
+          <datalist id="municipiosList"></datalist>
           <label class="field span2">Dirección<input type="text" id="mDireccion"></label>
           <label class="field span2">Información adicional<input type="text" id="mInfoAdicional" placeholder="Referencias, piso, torre..."></label>
           <label class="field">Latitud<input type="number" step="any" id="mLat"></label>
@@ -619,18 +621,20 @@ function pedirDatosCliente(dirRec){
     document.getElementById('modalMensaje').textContent = 'Editar datos del cliente';
     const extra = document.getElementById('modalExtra'); extra.innerHTML = '';
 
-    const campo = (label, valor)=>{
+    const campo = (label, valor, listId, placeholder)=>{
       const wrap = document.createElement('label'); wrap.className = 'field';
       wrap.appendChild(document.createTextNode(label));
       const input = document.createElement('input'); input.type='text'; input.value = valor || '';
+      if (listId) input.setAttribute('list', listId);
+      if (placeholder) input.placeholder = placeholder;
       wrap.appendChild(input);
       extra.appendChild(wrap);
       return input;
     };
     const inNombre = campo('Nombre', dirRec.nombre);
     const inDireccion = campo('Dirección', dirRec.direccion);
-    const inBarrio = campo('Barrio', dirRec.barrio);
-    const inMunicipio = campo('Municipio', dirRec.municipio);
+    const inBarrio = campo('Barrio 📋', dirRec.barrio, 'barriosList', 'Elige uno existente o escribe uno nuevo');
+    const inMunicipio = campo('Municipio 📋', dirRec.municipio, 'municipiosList', 'Elige uno existente o escribe uno nuevo');
 
     const acciones = document.getElementById('modalAcciones'); acciones.innerHTML = '';
     const btnNo = document.createElement('button'); btnNo.className='ghost small'; btnNo.textContent = 'Cancelar';
@@ -1064,7 +1068,7 @@ function pintarTodo(){
   const esDemo = directorio.some(d=>d.telefono && d.telefono.startsWith('300000000'));
   document.getElementById('demoNote').style.display = esDemo ? '' : 'none';
 
-  pintarPendientes(); pintarConflictos(); refrescarVistaHistorial(); actualizarDatalistRemitentes();
+  pintarPendientes(); pintarConflictos(); refrescarVistaHistorial(); actualizarDatalistRemitentes(); actualizarDatalistsDirectorio();
 }
 
 function llenarSelectFiltro(select, valores, valorActual){
@@ -1194,6 +1198,7 @@ function pintarPendientes(){
       dirRec.municipio = datos.municipio;
       await put('directorio', dirRec);
       pintarPendientes();
+      actualizarDatalistsDirectorio();
     });
   });
 }
@@ -1733,6 +1738,20 @@ function actualizarDatalistRemitentes(){
   [...vistos].sort().forEach(v=>{
     const opt = document.createElement('option'); opt.value = v; dl.appendChild(opt);
   });
+}
+
+function actualizarDatalistsDirectorio(){
+  const llenar = (idList, campo)=>{
+    const vistos = new Set();
+    directorio.forEach(d=>{ if (d[campo] && d[campo].trim()) vistos.add(d[campo].trim()); });
+    const dl = document.getElementById(idList);
+    dl.innerHTML = '';
+    [...vistos].sort().forEach(v=>{
+      const opt = document.createElement('option'); opt.value = v; dl.appendChild(opt);
+    });
+  };
+  llenar('barriosList', 'barrio');
+  llenar('municipiosList', 'municipio');
 }
 
 async function procesarFilasCSV(info, meta){
