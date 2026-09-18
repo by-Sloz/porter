@@ -613,6 +613,45 @@ function pedirTexto(mensaje, placeholder, valorInicial, requerido){
   });
 }
 
+function pedirDatosCliente(dirRec){
+  return new Promise(resolve=>{
+    const overlay = document.getElementById('modalOverlay');
+    document.getElementById('modalMensaje').textContent = 'Editar datos del cliente';
+    const extra = document.getElementById('modalExtra'); extra.innerHTML = '';
+
+    const campo = (label, valor)=>{
+      const wrap = document.createElement('label'); wrap.className = 'field';
+      wrap.appendChild(document.createTextNode(label));
+      const input = document.createElement('input'); input.type='text'; input.value = valor || '';
+      wrap.appendChild(input);
+      extra.appendChild(wrap);
+      return input;
+    };
+    const inNombre = campo('Nombre', dirRec.nombre);
+    const inDireccion = campo('Dirección', dirRec.direccion);
+    const inBarrio = campo('Barrio', dirRec.barrio);
+    const inMunicipio = campo('Municipio', dirRec.municipio);
+
+    const acciones = document.getElementById('modalAcciones'); acciones.innerHTML = '';
+    const btnNo = document.createElement('button'); btnNo.className='ghost small'; btnNo.textContent = 'Cancelar';
+    const btnSi = document.createElement('button'); btnSi.className='primary small'; btnSi.textContent = 'Guardar';
+    btnNo.addEventListener('click', ()=>{ overlay.hidden=true; resolve(null); });
+    btnSi.addEventListener('click', ()=>{
+      const nombre = inNombre.value.trim();
+      if (!nombre){ inNombre.focus(); return; }
+      overlay.hidden = true;
+      resolve({
+        nombre,
+        direccion: inDireccion.value.trim(),
+        barrio: inBarrio.value.trim(),
+        municipio: inMunicipio.value.trim()
+      });
+    });
+    acciones.appendChild(btnNo); acciones.appendChild(btnSi);
+    overlay.hidden = false; inNombre.focus();
+  });
+}
+
 // ---------------- Utilidades ----------------
 function esc(s){ return (s==null?'':String(s)).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function soloDigitos(s){ return (s||'').replace(/\D/g,''); }
@@ -1097,7 +1136,10 @@ function pintarPendientes(){
       </div>
       <div class="meta infoAdicionalRow">
         <span style="white-space:pre-line;">${esc(p.rec.infoAdicional) || '(sin información adicional)'}</span>
-        <button type="button" class="icon-btn" data-editarinfo="${esc(p.rec.id||'')}" aria-label="Editar información adicional" title="Editar información adicional">✏️</button>
+        <span style="display:flex;gap:4px;">
+          <button type="button" class="icon-btn" data-editarcliente="${esc(p.rec.id||'')}" aria-label="Editar nombre, dirección, barrio y municipio" title="Editar nombre, dirección, barrio y municipio">📝</button>
+          <button type="button" class="icon-btn" data-editarinfo="${esc(p.rec.id||'')}" aria-label="Editar información adicional" title="Editar información adicional">✏️</button>
+        </span>
       </div>
       <div class="meta">${ubicacionLinkHTML(p.rec.lat, p.rec.lon)}</div>
       <div class="meta">
@@ -1135,6 +1177,21 @@ function pintarPendientes(){
       );
       if (nuevoTexto === null) return;
       dirRec.infoAdicional = nuevoTexto;
+      await put('directorio', dirRec);
+      pintarPendientes();
+    });
+  });
+
+  cont.querySelectorAll('[data-editarcliente]').forEach(btn=>{
+    btn.addEventListener('click', async e=>{
+      const dirRec = directorio.find(d=>d.id===e.currentTarget.dataset.editarcliente);
+      if (!dirRec) return;
+      const datos = await pedirDatosCliente(dirRec);
+      if (!datos) return;
+      dirRec.nombre = properCase(datos.nombre);
+      dirRec.direccion = datos.direccion;
+      dirRec.barrio = datos.barrio;
+      dirRec.municipio = datos.municipio;
       await put('directorio', dirRec);
       pintarPendientes();
     });
@@ -1708,6 +1765,10 @@ async function procesarFilasCSV(info, meta){
     if (nOmitidos>0){
       resumen += ` · Omitidas por falta de Nombre o Teléfono: ${nOmitidos} (fila${nOmitidos>1?'s':''} ${filasOmitidas.slice(0,10).join(', ')}${filasOmitidas.length>10?'…':''})`;
     }
+    const pendientesDepurar = contarGruposPendientes();
+    if (pendientesDepurar>0){
+      resumen += `\n\n⚠️ Se detectaron ${pendientesDepurar} grupo(s) de Barrio/Municipio con variantes de escritura — revisa Configuración → "Depurar barrios y municipios".`;
+    }
     await mostrarAlerta(resumen);
     return true;
   }catch(err){
@@ -1838,6 +1899,10 @@ document.getElementById('fileImportDir').addEventListener('change', async e=>{
     pintarTodo();
     let msgResumen = `Directorio importado: ${nNuevos} nuevo(s), ${nActualizados} actualizado(s) (se identifican por teléfono).`;
     if (columnasInvertidas) msgResumen += ' Se detectaron las columnas Nombre/Teléfono invertidas y se corrigieron automáticamente.';
+    const pendientesDepurar = contarGruposPendientes();
+    if (pendientesDepurar>0){
+      msgResumen += `\n\n⚠️ Se detectaron ${pendientesDepurar} grupo(s) de Barrio/Municipio con variantes de escritura — revisa Configuración → "Depurar barrios y municipios".`;
+    }
     await mostrarAlerta(msgResumen);
   }catch(err){
     await mostrarAlerta('Error al importar el directorio: ' + err.message);
@@ -2187,6 +2252,15 @@ function firmaGrupo(campo, grupo){
 async function cargarDescartados(){
   const arr = await getMeta('depurarDescartados', []);
   gruposDescartados = new Set(arr);
+}
+function contarGruposPendientes(){
+  let total = 0;
+  ['barrio','municipio'].forEach(campo=>{
+    const valores = calcularValoresDistintos(campo);
+    const grupos = agruparValores(valores.filter(v=>v.raw)).filter(g=>g.length>1);
+    total += grupos.filter(g=>!gruposDescartados.has(firmaGrupo(campo, g))).length;
+  });
+  return total;
 }
 async function guardarDescartados(){
   await setMeta('depurarDescartados', [...gruposDescartados]);
