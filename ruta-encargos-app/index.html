@@ -167,7 +167,7 @@
   .card .who .name{font-weight:700;font-size:14.5px;}
   .card .who .phone{color:var(--ink-muted);font-size:13px;text-decoration:none;}
   .card .actions{display:flex;gap:8px;flex-wrap:wrap;}
-  .card .actions.acciones-pendiente{display:grid;grid-template-columns:1fr 1fr;}
+  .card .actions.acciones-pendiente,.card .actions.acciones-editar{display:grid;grid-template-columns:1fr 1fr;}
   .acciones-pendiente > *:last-child{grid-column:1 / -1;}
   .infoAdicionalRow{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;}
   .icon-btn{
@@ -198,6 +198,8 @@
   details.acordeon>summary::-webkit-details-marker{display:none;}
   details.acordeon>summary::after{content:'▾';color:var(--ink-muted);font-size:13px;transition:transform .15s ease;flex-shrink:0;}
   details.acordeon[open]>summary::after{transform:rotate(180deg);}
+  #listaPendientes details.acordeon>summary{align-items:flex-start;}
+  #listaPendientes details.acordeon>summary::after{margin-top:2px;font-size:11px;opacity:.6;}
   details.acordeon>.acordeon-body{display:flex;flex-direction:column;gap:12px;}
 
   .modal-overlay{position:fixed;inset:0;background:rgba(15,20,17,.5);display:flex;align-items:center;justify-content:center;z-index:50;padding:20px;}
@@ -1179,33 +1181,38 @@ function pintarPendientes(){
       cont.appendChild(sep);
     }
     const tipo = normalizarTipo(p.tipo);
-    const card = document.createElement('div'); card.className='card tipo-'+tipo;
+    const card = document.createElement('details'); card.className='card acordeon tipo-'+tipo;
+    card.setAttribute('name', 'acordeonPendientes');
     const distTxt = (p._dist!=null) ? `<span class="dist">${p._dist.toFixed(1)} km</span>` : '';
     card.innerHTML = `
-      <div class="who">
-        <span class="name">${esc(p.rec.nombre)||'(sin nombre)'}</span>
-        ${telefonoLinkHTML(p.rec.telefono)}
-      </div>
-      <div class="meta">
-        <span class="chip brand">${esc(p.rec.barrio)||'Sin barrio'}</span> ${distTxt}
-        &nbsp;${esc([p.rec.direccion, p.rec.municipio].filter(Boolean).join(', '))}
-      </div>
-      <div class="meta infoAdicionalRow">
-        <span style="white-space:pre-line;">${esc(p.rec.infoAdicional) || '(sin información adicional)'}</span>
-        <span style="display:flex;gap:4px;">
-          <button type="button" class="icon-btn" data-editarcliente="${esc(p.rec.id||'')}" aria-label="Editar nombre, dirección, barrio y municipio" title="Editar nombre, dirección, barrio y municipio">📝</button>
-          <button type="button" class="icon-btn" data-editarinfo="${esc(p.rec.id||'')}" aria-label="Editar información adicional" title="Editar información adicional">✏️</button>
-        </span>
-      </div>
-      <div class="meta">${ubicacionLinkHTML(p.rec.lat, p.rec.lon)}</div>
-      <div class="meta">
-        <b>${esc(p.asunto) || '(sin asunto)'}</b> · ${tipo==='recoger' ? '🔁 Recoger' : '📦 Entregar'}
-      </div>
-      ${p.remitente ? `<div class="meta">🏷️ ${esc(p.remitente)}</div>` : ''}
-      <div class="actions acciones-pendiente">
-        <a class="btn" target="_blank" rel="noopener" href="${waLink(p.rec.telefono, construirMensajeIndicaciones(p.rec, p.asunto, tipo))}">💬 Pedir indicaciones</a>
-        <button class="ok" data-entregado="${p.id}">${tipo==='recoger' ? '✅ Marcar recogido' : '✅ Marcar entregado'}</button>
-        <button class="warn small" data-fallido="${p.id}">❌ No se pudo completar</button>
+      <summary>
+        <div class="resumen-pendiente">
+          <div class="who">
+            <span class="name">${esc(p.rec.nombre)||'(sin nombre)'}</span>
+            ${distTxt}
+          </div>
+          <div class="meta">
+            <span class="chip brand">${esc(p.rec.barrio)||'Sin barrio'}</span>
+            &nbsp;${esc([p.rec.direccion, p.rec.municipio].filter(Boolean).join(', '))}
+          </div>
+          <div class="meta">
+            <b>${esc(p.asunto) || '(sin asunto)'}</b> · ${tipo==='recoger' ? '🔁 Recoger' : '📦 Entregar'}${p.remitente ? ' · 🏷️ ' + esc(p.remitente) : ''}
+          </div>
+        </div>
+      </summary>
+      <div class="acordeon-body">
+        <div class="meta">${telefonoLinkHTML(p.rec.telefono)}</div>
+        <div class="meta" style="white-space:pre-line;">${esc(p.rec.infoAdicional) || '(sin información adicional)'}</div>
+        <div class="meta">${ubicacionLinkHTML(p.rec.lat, p.rec.lon)}</div>
+        <div class="actions acciones-editar">
+          <button type="button" data-editarcliente="${esc(p.rec.id||'')}">📝 Editar datos del cliente</button>
+          <button type="button" data-editarinfo="${esc(p.rec.id||'')}">✏️ Editar información adicional</button>
+        </div>
+        <div class="actions acciones-pendiente">
+          <a class="btn" target="_blank" rel="noopener" href="${waLink(p.rec.telefono, construirMensajeIndicaciones(p.rec, p.asunto, tipo))}">💬 Pedir indicaciones</a>
+          <button class="ok" data-entregado="${p.id}">${tipo==='recoger' ? '✅ Marcar recogido' : '✅ Marcar entregado'}</button>
+          <button class="warn small" data-fallido="${p.id}">❌ No se pudo completar</button>
+        </div>
       </div>`;
     cont.appendChild(card);
   });
