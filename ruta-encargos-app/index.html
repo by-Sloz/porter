@@ -1461,7 +1461,8 @@ function pintarDetallePaquete(){
     let extra = '';
     if (it.estado==='completado'){
       const f = new Date(it.fecha);
-      extra = `<div class="meta">${f.toLocaleDateString()} ${f.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</div>`;
+      extra = `<div class="meta">${f.toLocaleDateString()} ${f.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</div>
+        <div class="actions"><button class="small" data-reintentar="${it._id}">↩️ Marcado por error, volver a Pendientes</button></div>`;
     } else if (it.estado==='fallido'){
       const f = new Date(it.fecha);
       extra = `<div class="meta">${f.toLocaleDateString()} ${f.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</div>
