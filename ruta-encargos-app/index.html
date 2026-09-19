@@ -106,7 +106,8 @@
   label.file{font-size:13px;font-weight:600;border-radius:8px;border:1px dashed var(--border);background:var(--surface-2);padding:9px 13px;cursor:pointer;display:inline-flex;gap:6px;align-items:center;}
   label.file input{display:none;}
   label.field{display:flex;flex-direction:column;gap:4px;font-size:12.5px;font-weight:600;color:var(--ink-muted);}
-  input[type=text],input[type=tel],input[type=number],textarea,select{font:inherit;width:100%;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--ink);padding:9px 10px;}
+  input[type=text],input[type=tel],input[type=number],input[type=search],textarea,select{font:inherit;width:100%;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--ink);padding:9px 10px;-webkit-appearance:none;appearance:none;}
+  input[type=search]::-webkit-search-cancel-button{-webkit-appearance:none;appearance:none;}
   .filtrosPend{justify-content:flex-start;}
   .filtrosPend .field{flex:1 1 160px;min-width:140px;}
   .fila-campos{justify-content:flex-start;}
@@ -279,14 +280,24 @@
         </div>
         <button class="small" id="btnUbicacion">📍 Actualizar mi ubicación</button>
       </div>
-      <div class="row filtrosPend">
-        <label class="field">Filtrar por barrio
-          <select id="filtroPendBarrio"><option value="">Todos los barrios</option></select>
-        </label>
-        <label class="field">Filtrar por municipio
-          <select id="filtroPendMunicipio"><option value="">Todos los municipios</option></select>
-        </label>
-      </div>
+      <details class="acordeon">
+        <summary>
+          <div class="label">🔎 Buscar y filtrar</div>
+        </summary>
+        <div class="acordeon-body">
+          <div class="row filtrosPend">
+            <label class="field">Buscar por nombre o teléfono
+              <input type="search" id="buscarPend" placeholder="Escribe un nombre o número...">
+            </label>
+            <label class="field">Filtrar por barrio
+              <select id="filtroPendBarrio"><option value="">Todos los barrios</option></select>
+            </label>
+            <label class="field">Filtrar por municipio
+              <select id="filtroPendMunicipio"><option value="">Todos los municipios</option></select>
+            </label>
+          </div>
+        </div>
+      </details>
     </div>
     <div class="cardlist" id="listaPendientes"></div>
     <div class="empty" id="emptyPend">No hay encargos pendientes.</div>
@@ -861,7 +872,7 @@ async function getDownloads(){
 // ---------------- Estado en memoria ----------------
 let directorio=[], pendientes=[], conflictos=[], historial=[];
 let posicionActual=null;
-let filtroPendBarrio='', filtroPendMunicipio='';
+let filtroPendBarrio='', filtroPendMunicipio='', buscarPendTexto='';
 
 async function cargarEstado(){
   directorio = await getAll('directorio');
@@ -1096,9 +1107,15 @@ function pintarPendientes(){
   filtroPendBarrio = llenarSelectFiltro(selBarrio, barriosDisponibles, filtroPendBarrio);
   filtroPendMunicipio = llenarSelectFiltro(selMunicipio, municipiosDisponibles, filtroPendMunicipio);
 
+  const textoBusqueda = claveComparacion(buscarPendTexto);
+  const digitosBusqueda = soloDigitos(buscarPendTexto);
   const enriquecidos = todosEnriquecidos.filter(p=>
     (!filtroPendBarrio || p.rec.barrio===filtroPendBarrio) &&
-    (!filtroPendMunicipio || p.rec.municipio===filtroPendMunicipio)
+    (!filtroPendMunicipio || p.rec.municipio===filtroPendMunicipio) &&
+    (!textoBusqueda ||
+      claveComparacion(p.rec.nombre||'').includes(textoBusqueda) ||
+      (digitosBusqueda && soloDigitos(p.rec.telefono||'').includes(digitosBusqueda))
+    )
   );
   document.getElementById('emptyPend').style.display = enriquecidos.length ? 'none' : '';
   document.getElementById('emptyPend').textContent = pendientes.length && !enriquecidos.length
@@ -1570,6 +1587,9 @@ document.getElementById('btnUbicacion').addEventListener('click', async ()=>{
   btn.disabled = false; btn.textContent = '📍 Actualizar mi ubicación';
 });
 
+document.getElementById('buscarPend').addEventListener('input', e=>{
+  buscarPendTexto = e.target.value; pintarPendientes();
+});
 document.getElementById('filtroPendBarrio').addEventListener('change', e=>{
   filtroPendBarrio = e.target.value; pintarPendientes();
 });
