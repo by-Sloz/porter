@@ -150,7 +150,9 @@
   .vista-paquete-detalle[hidden]{display:none;}
   .card.clicable{cursor:pointer;position:relative;}
   .card.clicable:hover{border-color:var(--brand);}
+  .card.clicable .who{padding-right:84px;}
   .card.clicable .borrar-paquete{position:absolute;top:10px;right:10px;font-size:16px;background:var(--surface);border:1px solid var(--border);}
+  .card.clicable .editar-paquete{position:absolute;top:10px;right:48px;font-size:16px;background:var(--surface);border:1px solid var(--border);}
   .progreso{display:flex;height:10px;border-radius:999px;overflow:hidden;background:var(--surface-2);}
   .progreso-seg{height:100%;}
   .progreso-seg.ok{background:var(--ok);}
@@ -664,6 +666,39 @@ function pedirDatosCliente(dirRec){
     });
     acciones.appendChild(btnNo); acciones.appendChild(btnSi);
     overlay.hidden = false; inNombre.focus();
+  });
+}
+
+function pedirAsuntoVinculacion(pend){
+  return new Promise(resolve=>{
+    const overlay = document.getElementById('modalOverlay');
+    document.getElementById('modalMensaje').textContent = 'Editar asunto y vinculación';
+    const extra = document.getElementById('modalExtra'); extra.innerHTML = '';
+
+    const campo = (label, valor, listId)=>{
+      const wrap = document.createElement('label'); wrap.className = 'field';
+      wrap.appendChild(document.createTextNode(label));
+      const input = document.createElement('input'); input.type='text'; input.value = valor || '';
+      if (listId) input.setAttribute('list', listId);
+      wrap.appendChild(input);
+      extra.appendChild(wrap);
+      return input;
+    };
+    const inAsunto = campo('Asunto del encargo', pend.asunto);
+    const inRemitente = campo('Vinculación (grupo / campaña / remitente / empresa)', pend.remitente, 'remitentesList');
+
+    const acciones = document.getElementById('modalAcciones'); acciones.innerHTML = '';
+    const btnNo = document.createElement('button'); btnNo.className='ghost small'; btnNo.textContent = 'Cancelar';
+    const btnSi = document.createElement('button'); btnSi.className='primary small'; btnSi.textContent = 'Guardar';
+    btnNo.addEventListener('click', ()=>{ overlay.hidden=true; resolve(null); });
+    btnSi.addEventListener('click', ()=>{
+      const asunto = inAsunto.value.trim();
+      if (!asunto){ inAsunto.focus(); return; }
+      overlay.hidden = true;
+      resolve({ asunto, remitente: inRemitente.value.trim() });
+    });
+    acciones.appendChild(btnNo); acciones.appendChild(btnSi);
+    overlay.hidden = false; inAsunto.focus();
   });
 }
 
@@ -1401,6 +1436,18 @@ function pintarPaquetes(){
     card.innerHTML = construirResumenPaqueteHTML(e);
     card.addEventListener('click', ()=> abrirDetallePaquete(e.paqueteId));
 
+    const btnEditar = document.createElement('button');
+    btnEditar.type = 'button';
+    btnEditar.className = 'icon-btn editar-paquete';
+    btnEditar.setAttribute('aria-label', 'Editar asunto y vinculación');
+    btnEditar.title = 'Editar asunto y vinculación de todos los encargos de este paquete';
+    btnEditar.textContent = '✏️';
+    btnEditar.addEventListener('click', async ev=>{
+      ev.stopPropagation();
+      await editarPaquete(e);
+    });
+    card.appendChild(btnEditar);
+
     const btnBorrar = document.createElement('button');
     btnBorrar.type = 'button';
     btnBorrar.className = 'icon-btn borrar-paquete';
@@ -1416,6 +1463,42 @@ function pintarPaquetes(){
     cont.appendChild(card);
   });
   alternarMosaico('listaPaquetes', 2);
+}
+
+async function editarPaquete(resumen){
+  const asuntoActual = [...resumen.asuntos].join(', ');
+  const datos = await pedirAsuntoVinculacion({asunto: asuntoActual, remitente: resumen.remitente});
+  if (!datos) return;
+
+  const paqueteId = resumen.paqueteId;
+  const pendientesAfectados = pendientes.filter(p=>(p.paqueteId||'sin-paquete')===paqueteId);
+  const historialAfectados = historial.filter(h=>(h.paqueteId||'sin-paquete')===paqueteId);
+  const total = pendientesAfectados.length + historialAfectados.length;
+  if (!total){ await mostrarAlerta('Este paquete no tiene encargos para actualizar.'); return; }
+
+  const ok = await pedirConfirmacion(
+    `¿Actualizar Asunto y Vinculación en los ${total} encargo(s) de este paquete?`,
+    'Actualizar', 'Cancelar'
+  );
+  if (!ok) return;
+
+  await conProgreso('Actualizando', total, async actualizar=>{
+    let i=0;
+    for (const p of pendientesAfectados){
+      p.asunto = datos.asunto; p.remitente = datos.remitente;
+      await put('pendientes', p);
+      i++; if (i%20===0 || i===total){ actualizar(i); await new Promise(r=>setTimeout(r,0)); }
+    }
+    for (const h of historialAfectados){
+      h.asunto = datos.asunto; h.remitente = datos.remitente;
+      await put('historial', h);
+      i++; if (i%20===0 || i===total){ actualizar(i); await new Promise(r=>setTimeout(r,0)); }
+    }
+  });
+
+  pintarTodo();
+  actualizarDatalistRemitentes();
+  await mostrarAlerta(`Se actualizaron ${total} encargo(s) con el nuevo Asunto/Vinculación.`);
 }
 
 async function borrarPaquete(resumen){
