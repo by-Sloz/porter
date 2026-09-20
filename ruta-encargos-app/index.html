@@ -14,6 +14,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
   :root{
+    color-scheme: light;
     --bg:#eef1ec; --surface:#ffffff; --surface-2:#e3e8de;
     --ink:#1d2620; --ink-muted:#5b6a5e; --border:#d3dbc9;
     --brand:#1f5f6b; --brand-ink:#ffffff; --brand-soft:#dfeaea;
@@ -27,6 +28,7 @@
   }
   @media (prefers-color-scheme: dark){
     :root:not([data-theme="light"]){
+      color-scheme: dark;
       --bg:#131a16; --surface:#1b241e; --surface-2:#232f27;
       --ink:#e7ece6; --ink-muted:#a3b0a4; --border:#324034;
       --brand:#5aa6ac; --brand-ink:#0d1513; --brand-soft:#1f3536;
@@ -37,6 +39,7 @@
     }
   }
   :root[data-theme="dark"]{
+    color-scheme: dark;
     --bg:#131a16; --surface:#1b241e; --surface-2:#232f27;
     --ink:#e7ece6; --ink-muted:#a3b0a4; --border:#324034;
     --brand:#5aa6ac; --brand-ink:#0d1513; --brand-soft:#1f3536;
@@ -175,11 +178,13 @@
   .progreso-leyenda .total{margin-left:auto;color:var(--ink-muted);font-weight:600;}
 
   .filtroEstado[aria-pressed="true"]{background:var(--brand);color:var(--brand-ink);border-color:var(--brand);}
-  .orden-barrios-lista{display:flex;flex-direction:column;gap:6px;}
-  .orden-barrio-fila{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface-2);}
-  .orden-barrio-num{font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:12px;color:var(--ink-muted);min-width:18px;text-align:right;}
-  .orden-barrio-nombre{flex:1;font-weight:600;font-size:13.5px;}
+  .orden-barrios-lista{display:flex;flex-direction:column;gap:6px;max-height:40vh;overflow-y:auto;}
+  .orden-barrio-fila{display:flex;flex-direction:column;gap:6px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface-2);}
+  .orden-barrio-num{font-family:'IBM Plex Mono',ui-monospace,monospace;color:var(--ink-muted);margin-right:4px;}
+  .orden-barrio-nombre{font-weight:600;font-size:13.5px;}
   .orden-barrio-botones{display:flex;gap:4px;}
+  .orden-barrio-botones .icon-btn{flex:1;background:var(--surface);border:1px solid var(--border);text-align:center;}
+  .orden-barrio-botones .icon-btn:disabled{opacity:.35;}
   .cardlist{display:flex;flex-direction:column;gap:10px;}
   .card .who{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap;}
   .card .who .name{font-weight:700;font-size:14.5px;}
@@ -222,6 +227,8 @@
   .modal-overlay[hidden]{display:none;}
   .modal-box{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px;max-width:340px;width:100%;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:16px;}
   .modal-box p{margin:0;font-size:14px;line-height:1.5;white-space:pre-line;}
+  #modalExtra{display:flex;flex-direction:column;gap:12px;}
+  #modalExtra .row.fila-agregar{align-items:flex-end;}
   .modal-actions{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;}
   footer{color:var(--ink-muted);font-size:12px;text-align:center;padding-top:8px;border-top:1px solid var(--border);margin-top:8px;}
 
@@ -314,6 +321,9 @@
             </label>
             <label class="field">Filtrar por municipio
               <select id="filtroPendMunicipio"><option value="">Todos los municipios</option></select>
+            </label>
+            <label class="field">Ordenar barrios por
+              <select id="selectOrdenPend"><option value="">Alfabético</option></select>
             </label>
           </div>
         </div>
@@ -495,14 +505,17 @@
       <details class="panel acordeon">
         <summary>
           <div>
-            <div class="label">Orden de ruta por barrio</div>
-            <div class="count">Define en qué orden visitas los barrios, en vez de alfabético</div>
+            <div class="label">Rutas de entrega</div>
+            <div class="count">Agrupa los barrios de un municipio en el orden real en que los recorres</div>
           </div>
         </summary>
         <div class="acordeon-body">
-          <div class="count">Este orden se usa en Pendientes cuando no hay ubicación GPS obtenida (o para los encargos sin coordenadas). Sube o baja cada barrio según el orden real de tu ruta.</div>
-          <div id="listaOrdenBarrios" class="orden-barrios-lista"></div>
-          <div class="empty" id="emptyOrdenBarrios" style="display:none;">Todavía no hay barrios en tu directorio.</div>
+          <div class="count">En Pendientes podrás elegir una de estas rutas para ordenar por cercanía real en vez de alfabético. Un barrio que no esté en la ruta elegida cae al final, ordenado alfabéticamente.</div>
+          <div class="row" style="gap:8px;flex-wrap:wrap;">
+            <button type="button" class="small" id="btnNuevaRuta">➕ Nueva ruta</button>
+          </div>
+          <div id="listaRutas" class="cardlist"></div>
+          <div class="empty" id="emptyRutas" style="display:none;">Todavía no has creado ninguna ruta.</div>
         </div>
       </details>
 
@@ -944,7 +957,8 @@ async function getDownloads(){
 let directorio=[], pendientes=[], conflictos=[], historial=[];
 let posicionActual=null;
 let pinnedPendId=null;
-let ordenBarrios=[];
+let rutas=[];
+let modoOrdenPend={tipo:'alfabetico'};
 let filtroPendBarrio='', filtroPendMunicipio='', buscarPendTexto='';
 
 async function cargarEstado(){
@@ -954,74 +968,238 @@ async function cargarEstado(){
   historial  = await getAll('historial');
   posicionActual = await getMeta('posicionActual', null);
   pinnedPendId = await getMeta('pinnedPendId', null);
-  ordenBarrios = await getMeta('ordenBarrios', []);
+  rutas = await getMeta('rutas', []);
+  modoOrdenPend = await getMeta('modoOrdenPend', {tipo:'alfabetico'});
 }
 
-// ---------------- Orden de ruta por barrio (en vez de alfabético) ----------------
-// Se guarda por combinación Barrio+Municipio (no solo Barrio), para no mezclar
-// barrios con el mismo nombre que pertenezcan a municipios distintos.
-function claveBarrioMunicipio(barrio, municipio){
-  return (barrio||'').trim() + '|||' + (municipio||'').trim();
+// ---------------- Rutas de entrega (barrios de un municipio, en el orden real de la ruta) ----------------
+function moverEnArray(arr, desde, hasta){
+  hasta = Math.max(0, Math.min(arr.length-1, hasta));
+  if (desde===hasta) return;
+  const [item] = arr.splice(desde, 1);
+  arr.splice(hasta, 0, item);
 }
-function listaBarriosParaOrdenar(){
-  const mapa = new Map();
-  directorio.forEach(d=>{
-    const barrio = (d.barrio||'').trim();
-    if (!barrio) return;
-    const clave = claveBarrioMunicipio(barrio, d.municipio);
-    if (!mapa.has(clave)) mapa.set(clave, {clave, barrio, municipio:(d.municipio||'').trim()});
-  });
-  const distintos = [...mapa.keys()];
-  const enOrden = ordenBarrios.filter(c=>distintos.includes(c)).map(c=>mapa.get(c));
-  const nuevos = distintos.filter(c=>!ordenBarrios.includes(c)).map(c=>mapa.get(c))
-    .sort((a,b)=> a.municipio.localeCompare(b.municipio) || a.barrio.localeCompare(b.barrio));
-  return [...enOrden, ...nuevos];
-}
-function indiceOrdenBarrio(barrio, municipio){
-  const i = ordenBarrios.indexOf(claveBarrioMunicipio(barrio, municipio));
+function indiceEnRuta(ruta, barrio){
+  if (!ruta) return Infinity;
+  const i = ruta.barrios.indexOf((barrio||'').trim());
   return i>=0 ? i : Infinity;
 }
-function compararPorBarrio(recA, recB){
-  const ia = indiceOrdenBarrio(recA.barrio, recA.municipio), ib = indiceOrdenBarrio(recB.barrio, recB.municipio);
+function compararPorRuta(recA, recB, ruta){
+  const ia = indiceEnRuta(ruta, recA.barrio), ib = indiceEnRuta(ruta, recB.barrio);
   if (ia!==ib) return ia-ib;
   return (recA.municipio||'').localeCompare(recB.municipio||'') || (recA.barrio||'').localeCompare(recB.barrio||'');
 }
-async function moverBarrio(desde, hasta){
-  const nuevaLista = listaBarriosParaOrdenar().map(item=>item.clave);
-  hasta = Math.max(0, Math.min(nuevaLista.length-1, hasta));
-  if (desde===hasta) return;
-  const [clave] = nuevaLista.splice(desde, 1);
-  nuevaLista.splice(hasta, 0, clave);
-  ordenBarrios = nuevaLista;
-  await setMeta('ordenBarrios', ordenBarrios);
-  pintarOrdenBarrios();
-  pintarPendientes();
+function barriosDelMunicipio(municipio){
+  return [...new Set(directorio
+    .filter(d=>(d.municipio||'').trim()===municipio)
+    .map(d=>(d.barrio||'').trim())
+    .filter(Boolean)
+  )].sort((a,b)=>a.localeCompare(b));
 }
-function pintarOrdenBarrios(){
-  const cont = document.getElementById('listaOrdenBarrios');
-  const empty = document.getElementById('emptyOrdenBarrios');
+async function guardarRutas(){
+  await setMeta('rutas', rutas);
+}
+// Si un barrio/municipio cambia de nombre en el directorio (corrección manual o Depurar)
+// y ningún otro cliente sigue usando el nombre viejo, se actualiza también en las Rutas
+// que lo tenían, para que no queden entradas huérfanas. Si algún otro cliente todavía
+// usa el nombre viejo legítimamente, no se toca nada (sigue siendo un barrio válido).
+function renombrarBarrioEnRutasSiQuedoSinUso(municipio, nombreAnterior, nombreNuevo){
+  if (!nombreAnterior || nombreAnterior===nombreNuevo) return false;
+  const siguenUsandolo = directorio.some(d=>(d.municipio||'').trim()===municipio && (d.barrio||'').trim()===nombreAnterior);
+  if (siguenUsandolo) return false;
+  let cambio = false;
+  rutas.forEach(ruta=>{
+    if (ruta.municipio!==municipio) return;
+    const idx = ruta.barrios.indexOf(nombreAnterior);
+    if (idx<0) return;
+    if (ruta.barrios.includes(nombreNuevo)) ruta.barrios.splice(idx,1);
+    else ruta.barrios[idx] = nombreNuevo;
+    cambio = true;
+  });
+  return cambio;
+}
+function renombrarMunicipioEnRutasSiQuedoSinUso(nombreAnterior, nombreNuevo){
+  if (!nombreAnterior || nombreAnterior===nombreNuevo) return false;
+  const siguenUsandolo = directorio.some(d=>(d.municipio||'').trim()===nombreAnterior);
+  if (siguenUsandolo) return false;
+  let cambio = false;
+  rutas.forEach(ruta=>{
+    if (ruta.municipio===nombreAnterior){ ruta.municipio = nombreNuevo; cambio = true; }
+  });
+  return cambio;
+}
+function pedirDatosRuta(ruta){
+  return new Promise(resolve=>{
+    const overlay = document.getElementById('modalOverlay');
+    document.getElementById('modalMensaje').textContent = ruta ? 'Editar ruta' : 'Nueva ruta';
+    const extra = document.getElementById('modalExtra'); extra.innerHTML = '';
+    const municipios = [...new Set(directorio.map(d=>(d.municipio||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+
+    const wrapNombre = document.createElement('label'); wrapNombre.className = 'field';
+    wrapNombre.appendChild(document.createTextNode('Nombre de la ruta'));
+    const inNombre = document.createElement('input'); inNombre.type = 'text'; inNombre.value = ruta ? ruta.nombre : ''; inNombre.placeholder = 'Ej: Ruta Turbaco mañana';
+    wrapNombre.appendChild(inNombre);
+    extra.appendChild(wrapNombre);
+
+    const wrapMunicipio = document.createElement('label'); wrapMunicipio.className = 'field';
+    wrapMunicipio.appendChild(document.createTextNode('Municipio'));
+    const selMunicipio = document.createElement('select');
+    selMunicipio.innerHTML = municipios.length
+      ? municipios.map(m=>`<option value="${esc(m)}">${esc(m)}</option>`).join('')
+      : '<option value="">(no hay municipios en tu directorio todavía)</option>';
+    if (ruta && municipios.includes(ruta.municipio)) selMunicipio.value = ruta.municipio;
+    wrapMunicipio.appendChild(selMunicipio);
+    extra.appendChild(wrapMunicipio);
+
+    const acciones = document.getElementById('modalAcciones'); acciones.innerHTML = '';
+    const btnNo = document.createElement('button'); btnNo.className = 'ghost small'; btnNo.textContent = 'Cancelar';
+    const btnSi = document.createElement('button'); btnSi.className = 'primary small'; btnSi.textContent = 'Guardar';
+    btnNo.addEventListener('click', ()=>{ overlay.hidden = true; resolve(null); });
+    btnSi.addEventListener('click', ()=>{
+      const nombre = inNombre.value.trim();
+      const municipio = selMunicipio.value;
+      if (!nombre || !municipio){ (nombre ? selMunicipio : inNombre).focus(); return; }
+      overlay.hidden = true;
+      resolve({nombre, municipio});
+    });
+    acciones.appendChild(btnNo); acciones.appendChild(btnSi);
+    overlay.hidden = false; inNombre.focus();
+  });
+}
+document.getElementById('btnNuevaRuta').addEventListener('click', async ()=>{
+  const datos = await pedirDatosRuta(null);
+  if (!datos) return;
+  rutas.push({id:uid(), nombre:datos.nombre, municipio:datos.municipio, barrios:[]});
+  await guardarRutas();
+  pintarRutas();
+  pintarPendientes();
+});
+function pintarRutas(){
+  const cont = document.getElementById('listaRutas');
+  const empty = document.getElementById('emptyRutas');
   if (!cont || !empty) return;
-  const lista = listaBarriosParaOrdenar();
   cont.innerHTML = '';
-  empty.style.display = lista.length ? 'none' : '';
-  lista.forEach((item, i)=>{
-    const fila = document.createElement('div'); fila.className = 'orden-barrio-fila';
-    const etiqueta = item.municipio ? `${item.barrio} — ${item.municipio}` : item.barrio;
-    const esPrimero = i===0, esUltimo = i===lista.length-1;
-    fila.innerHTML = `
-      <span class="orden-barrio-num">${i+1}</span>
-      <span class="orden-barrio-nombre">${esc(etiqueta)}</span>
-      <span class="orden-barrio-botones">
-        <button type="button" class="icon-btn" data-mover="${i}" data-a="0" ${esPrimero?'disabled':''} aria-label="Mover ${esc(etiqueta)} al inicio" title="Mover al inicio">⏫</button>
-        <button type="button" class="icon-btn" data-mover="${i}" data-a="${i-1}" ${esPrimero?'disabled':''} aria-label="Subir ${esc(etiqueta)}" title="Subir">▲</button>
-        <button type="button" class="icon-btn" data-mover="${i}" data-a="${i+1}" ${esUltimo?'disabled':''} aria-label="Bajar ${esc(etiqueta)}" title="Bajar">▼</button>
-        <button type="button" class="icon-btn" data-mover="${i}" data-a="${lista.length-1}" ${esUltimo?'disabled':''} aria-label="Mover ${esc(etiqueta)} al final" title="Mover al final">⏬</button>
-      </span>`;
-    cont.appendChild(fila);
+  empty.style.display = rutas.length ? 'none' : '';
+
+  rutas.forEach(ruta=>{
+    const card = document.createElement('div'); card.className = 'card';
+    card.innerHTML = `
+      <div class="who">
+        <span class="name">${esc(ruta.nombre)}</span>
+        <span class="chip brand">${esc(ruta.municipio)}</span>
+      </div>
+      <div class="meta">${ruta.barrios.length} barrio(s) en esta ruta</div>
+      <div class="actions">
+        <button type="button" class="small" data-editarbarrios>✏️ Editar barrios</button>
+        <button type="button" class="ghost small" data-editarruta>✏️ Renombrar / cambiar municipio</button>
+        <button type="button" class="warn small" data-eliminarruta>🗑️ Eliminar ruta</button>
+      </div>`;
+    cont.appendChild(card);
+
+    card.querySelector('[data-editarbarrios]').addEventListener('click', ()=> abrirModalBarriosRuta(ruta));
+
+    card.querySelector('[data-editarruta]').addEventListener('click', async ()=>{
+      const datos = await pedirDatosRuta(ruta);
+      if (!datos) return;
+      const cambioMunicipio = datos.municipio !== ruta.municipio;
+      if (cambioMunicipio && ruta.barrios.length>0){
+        const ok = await pedirConfirmacion(
+          `Cambiar el municipio de esta ruta borrará los ${ruta.barrios.length} barrio(s) ya agregados (son de "${ruta.municipio}"). ¿Continuar?`,
+          'Sí, cambiar', 'Cancelar'
+        );
+        if (!ok) return;
+      }
+      ruta.nombre = datos.nombre;
+      ruta.municipio = datos.municipio;
+      if (cambioMunicipio) ruta.barrios = [];
+      await guardarRutas();
+      pintarRutas();
+      pintarPendientes();
+    });
+    card.querySelector('[data-eliminarruta]').addEventListener('click', async ()=>{
+      const ok = await pedirConfirmacion(`¿Eliminar la ruta "${ruta.nombre}"? Los pendientes que la usaban para ordenarse volverán al orden alfabético.`, 'Eliminar', 'Cancelar');
+      if (!ok) return;
+      rutas = rutas.filter(r=>r.id!==ruta.id);
+      await guardarRutas();
+      if (modoOrdenPend.tipo==='ruta' && modoOrdenPend.rutaId===ruta.id){
+        modoOrdenPend = {tipo:'alfabetico'};
+        await setMeta('modoOrdenPend', modoOrdenPend);
+      }
+      pintarRutas();
+      pintarPendientes();
+    });
   });
-  cont.querySelectorAll('[data-mover]').forEach(btn=>{
-    btn.addEventListener('click', ()=> moverBarrio(parseInt(btn.dataset.mover,10), parseInt(btn.dataset.a,10)));
-  });
+}
+
+function abrirModalBarriosRuta(ruta){
+  const overlay = document.getElementById('modalOverlay');
+  document.getElementById('modalMensaje').textContent = `Barrios de "${ruta.nombre}"`;
+  const extra = document.getElementById('modalExtra');
+
+  function render(){
+    const disponibles = barriosDelMunicipio(ruta.municipio).filter(b=>!ruta.barrios.includes(b));
+    extra.innerHTML = `
+      <div class="row fila-campos fila-agregar">
+        <label class="field">Agregar barrio
+          <select id="modalSelectBarrio">${disponibles.length ? disponibles.map(b=>`<option value="${esc(b)}">${esc(b)}</option>`).join('') : '<option value="">(no hay más barrios de este municipio)</option>'}</select>
+        </label>
+        <button type="button" class="small" id="modalBtnAgregarBarrio" ${disponibles.length?'':'disabled'}>+ Agregar</button>
+      </div>
+      <div class="orden-barrios-lista" id="modalListaBarrios"></div>
+      <div class="empty" style="display:${ruta.barrios.length?'none':''}">Todavía no has agregado barrios a esta ruta.</div>
+    `;
+    const listaEl = document.getElementById('modalListaBarrios');
+    ruta.barrios.forEach((barrio, i)=>{
+      const fila = document.createElement('div'); fila.className = 'orden-barrio-fila';
+      const esPrimero = i===0, esUltimo = i===ruta.barrios.length-1;
+      fila.innerHTML = `
+        <span class="orden-barrio-nombre"><span class="orden-barrio-num">${i+1}.</span>${esc(barrio)}</span>
+        <span class="orden-barrio-botones">
+          <button type="button" class="icon-btn" data-mover="${i}" data-a="0" ${esPrimero?'disabled':''} title="Mover al inicio">⏫</button>
+          <button type="button" class="icon-btn" data-mover="${i}" data-a="${i-1}" ${esPrimero?'disabled':''} title="Subir">▲</button>
+          <button type="button" class="icon-btn" data-mover="${i}" data-a="${i+1}" ${esUltimo?'disabled':''} title="Bajar">▼</button>
+          <button type="button" class="icon-btn" data-mover="${i}" data-a="${ruta.barrios.length-1}" ${esUltimo?'disabled':''} title="Mover al final">⏬</button>
+          <button type="button" class="icon-btn" data-quitar="${i}" title="Quitar de la ruta">🗑️</button>
+        </span>`;
+      listaEl.appendChild(fila);
+    });
+    listaEl.querySelectorAll('[data-mover]').forEach(btn=>{
+      btn.addEventListener('click', async ()=>{
+        moverEnArray(ruta.barrios, parseInt(btn.dataset.mover,10), parseInt(btn.dataset.a,10));
+        await guardarRutas();
+        render();
+        pintarRutas();
+        pintarPendientes();
+      });
+    });
+    listaEl.querySelectorAll('[data-quitar]').forEach(btn=>{
+      btn.addEventListener('click', async ()=>{
+        ruta.barrios.splice(parseInt(btn.dataset.quitar,10), 1);
+        await guardarRutas();
+        render();
+        pintarRutas();
+        pintarPendientes();
+      });
+    });
+    const selBarrio = document.getElementById('modalSelectBarrio');
+    const btnAgregar = document.getElementById('modalBtnAgregarBarrio');
+    btnAgregar.addEventListener('click', async ()=>{
+      const barrio = selBarrio.value;
+      if (!barrio) return;
+      ruta.barrios.push(barrio);
+      await guardarRutas();
+      render();
+      pintarRutas();
+      pintarPendientes();
+    });
+  }
+  render();
+
+  const acciones = document.getElementById('modalAcciones'); acciones.innerHTML = '';
+  const btnCerrar = document.createElement('button'); btnCerrar.className = 'primary small'; btnCerrar.textContent = 'Cerrar';
+  btnCerrar.addEventListener('click', ()=>{ overlay.hidden = true; });
+  acciones.appendChild(btnCerrar);
+  overlay.hidden = false;
 }
 
 // ---------------- Semilla de ejemplo ----------------
@@ -1221,7 +1399,7 @@ function pintarTodo(){
   const esDemo = directorio.some(d=>d.telefono && d.telefono.startsWith('300000000'));
   document.getElementById('demoNote').style.display = esDemo ? '' : 'none';
 
-  pintarPendientes(); pintarConflictos(); refrescarVistaHistorial(); actualizarDatalistRemitentes(); actualizarDatalistsDirectorio(); pintarOrdenBarrios();
+  pintarPendientes(); pintarConflictos(); refrescarVistaHistorial(); actualizarDatalistRemitentes(); actualizarDatalistsDirectorio(); pintarRutas();
 }
 
 function llenarSelectFiltro(select, valores, valorActual){
@@ -1249,6 +1427,18 @@ function pintarPendientes(){
   filtroPendBarrio = llenarSelectFiltro(selBarrio, barriosDisponibles, filtroPendBarrio);
   filtroPendMunicipio = llenarSelectFiltro(selMunicipio, municipiosDisponibles, filtroPendMunicipio);
 
+  const selOrden = document.getElementById('selectOrdenPend');
+  const rutasDisponibles = rutas.filter(r=>municipiosDisponibles.includes(r.municipio));
+  const valorOrdenGuardado = modoOrdenPend.tipo==='ruta' ? modoOrdenPend.rutaId : '';
+  selOrden.innerHTML = '<option value="">Alfabético</option>' +
+    rutasDisponibles.map(r=>`<option value="${esc(r.id)}">${esc(r.nombre)} — ${esc(r.municipio)}</option>`).join('');
+  selOrden.value = rutasDisponibles.some(r=>r.id===valorOrdenGuardado) ? valorOrdenGuardado : '';
+  const rutaSeleccionada = rutas.find(r=>r.id===selOrden.value) || null;
+  const descOrdenBarrio = rutaSeleccionada ? `ruta "${rutaSeleccionada.nombre}"` : 'orden alfabético';
+  const compararBarrioActual = (a,b) => rutaSeleccionada
+    ? compararPorRuta(a, b, rutaSeleccionada)
+    : ((a.municipio||'').localeCompare(b.municipio||'') || (a.barrio||'').localeCompare(b.barrio||''));
+
   const textoBusqueda = claveComparacion(buscarPendTexto);
   const digitosBusqueda = soloDigitos(buscarPendTexto);
   const enriquecidos = todosEnriquecidos.filter(p=>
@@ -1271,13 +1461,13 @@ function pintarPendientes(){
     const sinCoord = enriquecidos.filter(p=>!tieneCoords(p.rec));
     conCoord.forEach(p=> p._dist = distanciaKm(posicionActual.lat,posicionActual.lon,p.rec.lat,p.rec.lon));
     conCoord.sort((a,b)=>a._dist-b._dist);
-    sinCoord.sort((a,b)=> compararPorBarrio(a.rec, b.rec));
+    sinCoord.sort((a,b)=> compararBarrioActual(a.rec, b.rec));
     orden = conCoord.map(p=>({...p, _sinCoordInicio:false})).concat(
       sinCoord.map((p,i)=>({...p, _sinCoordInicio:i===0 && conCoord.length>0}))
     );
     huboSinCoordSeparado = sinCoord.length>0 && conCoord.length>0;
   } else {
-    orden = [...enriquecidos].sort((a,b)=> compararPorBarrio(a.rec, b.rec)).map(p=>({...p,_sinCoordInicio:false}));
+    orden = [...enriquecidos].sort((a,b)=> compararBarrioActual(a.rec, b.rec)).map(p=>({...p,_sinCoordInicio:false}));
   }
 
   if (pinnedPendId){
@@ -1296,7 +1486,7 @@ function pintarPendientes(){
 
   orden.forEach(p=>{
     if (p._sinCoordInicio){
-      const sep = document.createElement('div'); sep.className='sep-label'; sep.textContent='Sin coordenadas — ordenado por barrio';
+      const sep = document.createElement('div'); sep.className='sep-label'; sep.textContent='Sin coordenadas — ordenado por ' + descOrdenBarrio;
       cont.appendChild(sep);
     }
     const tipo = normalizarTipo(p.tipo);
@@ -1357,8 +1547,8 @@ function pintarPendientes(){
   });
 
   document.getElementById('ubicEstado').textContent = posicionActual
-    ? `Ordenado por cercanía a tu ubicación (${posicionActual.lat.toFixed(4)}, ${posicionActual.lon.toFixed(4)}).`
-    : 'Ubicación no obtenida — ordenando por barrio.';
+    ? `Ordenado por cercanía a tu ubicación (${posicionActual.lat.toFixed(4)}, ${posicionActual.lon.toFixed(4)}); sin coordenadas usa ${descOrdenBarrio}.`
+    : `Ubicación no obtenida — ordenando por ${descOrdenBarrio}.`;
 
   cont.querySelectorAll('[data-entregado]').forEach(btn=>{
     btn.addEventListener('click', e=> marcarEntregado(e.currentTarget.dataset.entregado));
@@ -1394,6 +1584,14 @@ function pintarPendientes(){
       await put('directorio', dirRec);
       pintarPendientes();
       actualizarDatalistsDirectorio();
+
+      let cambioRutas = false;
+      if (anterior.municipio===dirRec.municipio && anterior.barrio!==dirRec.barrio){
+        cambioRutas = renombrarBarrioEnRutasSiQuedoSinUso(anterior.municipio, anterior.barrio, dirRec.barrio);
+      } else if (anterior.barrio===dirRec.barrio && anterior.municipio!==dirRec.municipio){
+        cambioRutas = renombrarMunicipioEnRutasSiQuedoSinUso(anterior.municipio, dirRec.municipio);
+      }
+      if (cambioRutas){ await guardarRutas(); pintarRutas(); }
 
       const cambios = [];
       if (anterior.direccion.trim() !== dirRec.direccion.trim()) cambios.push(`Dirección: "${anterior.direccion || '(vacía)'}" → "${dirRec.direccion || '(vacía)'}"`);
@@ -1902,6 +2100,11 @@ document.getElementById('filtroPendBarrio').addEventListener('change', e=>{
 });
 document.getElementById('filtroPendMunicipio').addEventListener('change', e=>{
   filtroPendMunicipio = e.target.value; pintarPendientes();
+});
+document.getElementById('selectOrdenPend').addEventListener('change', async e=>{
+  modoOrdenPend = e.target.value ? {tipo:'ruta', rutaId:e.target.value} : {tipo:'alfabetico'};
+  await setMeta('modoOrdenPend', modoOrdenPend);
+  pintarPendientes();
 });
 
 document.getElementById('btnUsarUbicacionForm').addEventListener('click', async ()=>{
@@ -2734,9 +2937,26 @@ function pintarGruposDepurar(){
           if (i%20===0 || i===afectados.length-1){ actualizar(i+1); await new Promise(r=>setTimeout(r,0)); }
         }
       });
+      let cambioRutas = false;
+      if (campo==='barrio'){
+        const municipiosAfectados = [...new Set(afectados.map(d=>(d.municipio||'').trim()).filter(Boolean))];
+        for (const m of municipiosAfectados){
+          for (const viejo of variantesRaw){
+            if (renombrarBarrioEnRutasSiQuedoSinUso(m, viejo, canonico)) cambioRutas = true;
+          }
+        }
+      } else {
+        for (const viejo of variantesRaw){
+          if (renombrarMunicipioEnRutasSiQuedoSinUso(viejo, canonico)) cambioRutas = true;
+        }
+      }
+      if (cambioRutas) await guardarRutas();
+
       pintarTodo();
       pintarGruposDepurar();
-      await mostrarAlerta(`Se unificaron ${afectados.length} registro(s) bajo "${canonico}".`);
+      let mensajeFinal = `Se unificaron ${afectados.length} registro(s) bajo "${canonico}".`;
+      if (cambioRutas) mensajeFinal += ' También se actualizó el nombre en las rutas de entrega que lo usaban.';
+      await mostrarAlerta(mensajeFinal);
     });
   });
   alternarMosaico('listaGruposDepurar', 2);
