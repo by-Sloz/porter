@@ -188,7 +188,8 @@
   .cardlist{display:flex;flex-direction:column;gap:10px;}
   .card .who{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap;}
   .card .who .name{font-weight:700;font-size:14.5px;}
-  .card .who .phone{color:var(--ink-muted);font-size:13px;text-decoration:none;}
+  .phone{font-size:16px;font-weight:700;text-decoration:none;}
+  .card .who .phone{color:var(--ink-muted);}
   .card .actions{gap:8px;display:grid;grid-template-columns:1fr 1fr;}
   .actions.acciones-pendiente > *:last-child{grid-column:1 / -1;}
   .icon-btn{
@@ -204,9 +205,10 @@
   .meta{font-size:12.5px;color:var(--ink-muted);}
   .dist{font-family:'IBM Plex Mono';font-size:12.5px;color:var(--brand);font-weight:600;}
 
-  .diffrow{display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12.5px;}
-  .diffrow .box{background:var(--surface-2);border-radius:8px;padding:8px;display:flex;flex-direction:column;gap:2px;}
+  .diffrow{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px;font-size:12.5px;}
+  .diffrow .box{background:var(--surface-2);border-radius:8px;padding:8px;display:flex;flex-direction:column;gap:2px;min-width:0;}
   .diffrow .box .lbl{font-size:10.5px;text-transform:uppercase;letter-spacing:.3px;color:var(--ink-muted);}
+  .diffrow .box .chip{white-space:normal;}
 
   .empty{border:1px dashed var(--border);border-radius:10px;padding:16px;text-align:center;color:var(--ink-muted);font-size:13.5px;}
   .toast{background:var(--ok-soft);border:1px solid var(--ok);color:var(--ok);border-radius:10px;padding:10px 12px;font-size:13.5px;font-weight:600;display:none;}
@@ -325,6 +327,7 @@
             <label class="field">Ordenar barrios por
               <select id="selectOrdenPend"><option value="">Alfabético</option></select>
             </label>
+            <button type="button" class="ghost small" id="btnLimpiarFiltrosPend" style="align-self:flex-end;">🧹 Limpiar filtros</button>
           </div>
         </div>
       </details>
@@ -1776,8 +1779,9 @@ let paqueteActivo = null;
 let filtroActivo = 'todos';
 
 function refrescarVistaHistorial(){
-  fijarBadge('badgeHist', calcularResumenPaquetes().length);
-  fijarBadge('badgeHistTop', calcularResumenPaquetes().length);
+  const paquetesConPendientes = calcularResumenPaquetes().filter(e=>e.pendientesN>0).length;
+  fijarBadge('badgeHist', paquetesConPendientes);
+  fijarBadge('badgeHistTop', paquetesConPendientes);
   if (paqueteActivo && !document.getElementById('vistaDetallePaquete').hidden){
     pintarDetallePaquete();
   } else {
@@ -2104,6 +2108,13 @@ document.getElementById('filtroPendMunicipio').addEventListener('change', e=>{
 document.getElementById('selectOrdenPend').addEventListener('change', async e=>{
   modoOrdenPend = e.target.value ? {tipo:'ruta', rutaId:e.target.value} : {tipo:'alfabetico'};
   await setMeta('modoOrdenPend', modoOrdenPend);
+  pintarPendientes();
+});
+document.getElementById('btnLimpiarFiltrosPend').addEventListener('click', ()=>{
+  buscarPendTexto = ''; filtroPendBarrio = ''; filtroPendMunicipio = '';
+  document.getElementById('buscarPend').value = '';
+  document.getElementById('filtroPendBarrio').value = '';
+  document.getElementById('filtroPendMunicipio').value = '';
   pintarPendientes();
 });
 
