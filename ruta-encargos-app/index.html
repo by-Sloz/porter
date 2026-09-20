@@ -11,7 +11,9 @@
 <meta name="apple-mobile-web-app-title" content="Ruta Encargos">
 <title>Ruta de Encargos</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800&family=Public+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <style>
   :root{
     color-scheme: light;
@@ -178,6 +180,11 @@
   .progreso-leyenda .total{margin-left:auto;color:var(--ink-muted);font-weight:600;}
 
   .filtroEstado[aria-pressed="true"]{background:var(--brand);color:var(--brand-ink);border-color:var(--brand);}
+  .chip-toggle{display:inline-flex;align-items:center;gap:5px;min-width:44px;justify-content:center;padding:7px 12px;border-radius:999px;font-size:12.5px;font-weight:700;border:2px solid transparent;background:var(--surface-2);color:var(--ink-muted);cursor:pointer;font-family:inherit;}
+  .chip-toggle[aria-pressed="true"]{background:var(--brand);color:var(--brand-ink);border-color:var(--brand-ink);}
+  .chip-toggle-info{cursor:default;background:var(--surface-2);color:var(--ink-muted);}
+  select.select-etiqueta{border:none;background:transparent;padding:0;margin:0;width:auto;max-width:100%;font-size:16px;font-weight:700;color:var(--ink);-webkit-appearance:auto;appearance:auto;}
+  select option{background-color:var(--surface);color:var(--ink);}
   .orden-barrios-lista{display:flex;flex-direction:column;gap:6px;max-height:40vh;overflow-y:auto;}
   .orden-barrio-fila{display:flex;flex-direction:column;gap:6px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface-2);}
   .orden-barrio-num{font-family:'IBM Plex Mono',ui-monospace,monospace;color:var(--ink-muted);margin-right:4px;}
@@ -280,6 +287,10 @@
         <span class="tabicon">📋<span class="badge" id="badgePendTop">0</span></span>
         <span>Pendientes</span>
       </button>
+      <button class="tabbtn" data-tab="mapa" aria-selected="false">
+        <span class="tabicon">🗺️</span>
+        <span>Mapa</span>
+      </button>
       <button class="tabbtn" data-tab="conflictos" aria-selected="false">
         <span class="tabicon">⚠️<span class="badge" id="badgeConfTop">0</span></span>
         <span>Conflictos</span>
@@ -334,6 +345,20 @@
     </div>
     <div class="cardlist" id="listaPendientes"></div>
     <div class="empty" id="emptyPend">No hay encargos pendientes.</div>
+  </section>
+
+  <!-- MAPA -->
+  <section class="panelview" id="tab-mapa" hidden>
+    <div class="panel">
+      <select id="filtroMapaPaquete" class="select-etiqueta"><option value="">Todos los encargos</option></select>
+      <div class="row" style="gap:8px;flex-wrap:wrap;align-items:center;">
+        <button type="button" class="chip-toggle filtroEstadoMapa" data-filtro="pendiente" aria-pressed="true" title="Pendientes" aria-label="Pendientes">⏳ 0</button>
+        <button type="button" class="chip-toggle filtroEstadoMapa" data-filtro="completado" aria-pressed="false" title="Completados" aria-label="Completados">✅ 0</button>
+        <button type="button" class="chip-toggle filtroEstadoMapa" data-filtro="fallido" aria-pressed="false" title="No completados" aria-label="No completados">⚠️ 0</button>
+        <span class="chip-toggle chip-toggle-info" id="chipSinCoordMapa" title="Sin coordenadas — no aparecen en el mapa">📍🚫 0</span>
+      </div>
+    </div>
+    <div id="mapaPendientes" style="min-height:280px;border-radius:12px;overflow:hidden;border:1px solid var(--border);isolation:isolate;position:relative;z-index:0;"></div>
   </section>
 
   <!-- CONFLICTOS -->
@@ -571,6 +596,10 @@
   <button class="tabbtn" data-tab="pendientes" aria-selected="true" aria-label="Pendientes">
     <span class="tabicon">📋<span class="badge" id="badgePend">0</span></span>
     <span>Pendientes</span>
+  </button>
+  <button class="tabbtn" data-tab="mapa" aria-selected="false" aria-label="Mapa">
+    <span class="tabicon">🗺️</span>
+    <span>Mapa</span>
   </button>
   <button class="tabbtn" data-tab="conflictos" aria-selected="false" aria-label="Conflictos">
     <span class="tabicon">⚠️<span class="badge" id="badgeConf">0</span></span>
@@ -960,6 +989,8 @@ async function getDownloads(){
 let directorio=[], pendientes=[], conflictos=[], historial=[];
 let posicionActual=null;
 let pinnedPendId=null;
+let mapaLeaflet=null, mapaMarkersLayer=null;
+let filtroMapaEstados=new Set(['pendiente']), filtroMapaPaquete='';
 let rutas=[];
 let modoOrdenPend={tipo:'alfabetico'};
 let filtroPendBarrio='', filtroPendMunicipio='', buscarPendTexto='';
@@ -1668,6 +1699,123 @@ function alternarMosaico(idLista, minimo){
   el.classList.toggle('en-mosaico', n > minimo);
 }
 
+// ---------------- Mapa de pendientes ----------------
+function itemsParaMapa(){
+  const items = [];
+  pendientes.forEach(p=>{
+    const rec = directorio.find(d=>d.id===p.directorioId) || {};
+    items.push({
+      estado:'pendiente', nombre:rec.nombre||'', telefono:rec.telefono||'', barrio:rec.barrio||'', municipio:rec.municipio||'',
+      asunto:p.asunto||'', tipo:normalizarTipo(p.tipo), paqueteId:p.paqueteId||'sin-paquete',
+      lat:rec.lat, lon:rec.lon
+    });
+  });
+  historial.forEach(h=>{
+    const rec = directorio.find(d=>claveTelefono(d.telefono)===claveTelefono(h.telefono)) || {};
+    const lat = h.coordEntrega ? h.coordEntrega.lat : rec.lat;
+    const lon = h.coordEntrega ? h.coordEntrega.lon : rec.lon;
+    items.push({
+      estado: (h.estado||'completado')==='fallido' ? 'fallido' : 'completado',
+      nombre:h.nombre||'', telefono:h.telefono||'', barrio:h.barrio||'', municipio:h.municipio||'',
+      asunto:h.asunto||'', tipo:normalizarTipo(h.tipo), paqueteId:h.paqueteId||'sin-paquete',
+      lat, lon
+    });
+  });
+  return items;
+}
+function llenarFiltroMapaPaquete(){
+  const sel = document.getElementById('filtroMapaPaquete');
+  const anterior = sel.value;
+  const resumen = calcularResumenPaquetes();
+  sel.innerHTML = '<option value="">Todos los encargos</option>' +
+    resumen.map(e=>`<option value="${esc(e.paqueteId)}">${esc([...e.asuntos].join(', ')||'(sin asunto)')} — ${esc(formatearFechaPaquete(e.fecha))}</option>`).join('');
+  sel.value = resumen.some(e=>e.paqueteId===anterior) ? anterior : '';
+  filtroMapaPaquete = sel.value;
+}
+function ajustarAlturaMapa(){
+  const cont = document.getElementById('mapaPendientes');
+  const panelMapa = document.querySelector('#tab-mapa > .panel');
+  if (!cont || !panelMapa) return;
+  const header = document.querySelector('header.top');
+  const headerH = header ? header.offsetHeight : 0;
+  const panelH = panelMapa.offsetHeight;
+  const tabbar = document.querySelector('.tabbar');
+  const tabbarH = (tabbar && getComputedStyle(tabbar).display !== 'none') ? tabbar.offsetHeight : 0;
+  // 50px cubre el padding superior de .wrap, el margen inferior del panel y un pequeño colchón.
+  const disponible = window.innerHeight - headerH - panelH - tabbarH - 50;
+  cont.style.height = Math.max(280, Math.round(disponible)) + 'px';
+}
+function pintarMapa(){
+  const cont = document.getElementById('mapaPendientes');
+  if (!cont) return;
+  if (typeof L === 'undefined'){
+    cont.textContent = 'No se pudo cargar el mapa (revisa tu conexión) e intenta de nuevo.';
+    return;
+  }
+
+  llenarFiltroMapaPaquete();
+  ajustarAlturaMapa();
+
+  if (!mapaLeaflet){
+    mapaLeaflet = L.map(cont, {scrollWheelZoom:true}).setView([10.39, -75.51], 12);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '© OpenStreetMap'
+    }).addTo(mapaLeaflet);
+    mapaMarkersLayer = L.layerGroup().addTo(mapaLeaflet);
+  }
+  mapaMarkersLayer.clearLayers();
+
+  const coloresEstado = {pendiente:'#1f5f6b', completado:'#3f8b5c', fallido:'#c2542f'};
+  const etiquetasEstado = {pendiente:'⏳ Pendiente', completado:'✅ Completado', fallido:'⚠️ No completado'};
+  const iconosEstado = {pendiente:'⏳', completado:'✅', fallido:'⚠️'};
+
+  const todos = itemsParaMapa();
+  const delPaquete = todos.filter(it=> !filtroMapaPaquete || it.paqueteId===filtroMapaPaquete);
+  document.querySelectorAll('.filtroEstadoMapa').forEach(btn=>{
+    const est = btn.dataset.filtro;
+    const n = delPaquete.filter(it=>it.estado===est && tieneCoords(it)).length;
+    btn.textContent = `${iconosEstado[est]} ${n}`;
+  });
+
+  const filtrados = delPaquete.filter(it=> filtroMapaEstados.has(it.estado));
+  const conCoord = filtrados.filter(it=>tieneCoords(it));
+  const sinCoord = filtrados.length - conCoord.length;
+
+  const puntos = [];
+  conCoord.forEach(it=>{
+    const color = coloresEstado[it.estado] || coloresEstado.pendiente;
+    const marker = L.circleMarker([it.lat, it.lon], {radius:9, color, fillColor:color, fillOpacity:.85, weight:2}).addTo(mapaMarkersLayer);
+    const waHref = waLink(it.telefono, construirMensajeIndicaciones({nombre:it.nombre}, it.asunto, it.tipo));
+    marker.bindPopup(`
+      <b>${esc(it.nombre)||'(sin nombre)'}</b><br>
+      ${etiquetasEstado[it.estado]||''}<br>
+      ${esc(it.barrio)||'Sin barrio'}${it.municipio ? ', '+esc(it.municipio) : ''}<br>
+      ${it.tipo==='recoger' ? '🔁 Recoger' : '📦 Entregar'} — ${esc(it.asunto)||'(sin asunto)'}<br>
+      <a href="${waHref}" target="_blank" rel="noopener">💬 Contactar</a>
+    `);
+    puntos.push([it.lat, it.lon]);
+  });
+
+  if (posicionActual){
+    L.circleMarker([posicionActual.lat, posicionActual.lon], {radius:8, color:'#1f5f6b', fillColor:'#1f5f6b', fillOpacity:.9})
+      .addTo(mapaMarkersLayer)
+      .bindPopup('📍 Tu ubicación');
+    puntos.push([posicionActual.lat, posicionActual.lon]);
+  }
+
+  if (puntos.length===1){
+    mapaLeaflet.setView(puntos[0], 15);
+  } else if (puntos.length>1){
+    mapaLeaflet.fitBounds(puntos, {padding:[30,30]});
+  }
+
+  const chipSinCoord = document.getElementById('chipSinCoordMapa');
+  if (chipSinCoord) chipSinCoord.textContent = `📍🚫 ${sinCoord}`;
+
+  mapaLeaflet.invalidateSize();
+}
+
 function pintarConflictos(){
   const cont = document.getElementById('listaConflictos'); cont.innerHTML='';
   document.getElementById('emptyConf').style.display = conflictos.length ? 'none' : '';
@@ -2028,7 +2176,21 @@ document.querySelectorAll('.tabbtn').forEach(btn=>{
     document.querySelectorAll('.tabbtn').forEach(b=>b.setAttribute('aria-selected', b.dataset.tab===btn.dataset.tab));
     document.querySelectorAll('.panelview').forEach(p=>p.hidden = (p.id !== 'tab-'+btn.dataset.tab));
     ajustarAlturaHeader();
+    if (btn.dataset.tab==='mapa') pintarMapa();
   });
+});
+window.addEventListener('resize', ()=>{
+  const tabMapa = document.getElementById('tab-mapa');
+  if (tabMapa && !tabMapa.hidden){
+    ajustarAlturaMapa();
+    if (mapaLeaflet) mapaLeaflet.invalidateSize();
+  }
+});
+window.addEventListener('orientationchange', ()=>{
+  const tabMapa = document.getElementById('tab-mapa');
+  if (tabMapa && !tabMapa.hidden){
+    setTimeout(()=>{ ajustarAlturaMapa(); if (mapaLeaflet) mapaLeaflet.invalidateSize(); }, 150);
+  }
 });
 
 // Mide la altura real del header pegajoso para que el panel de Pendientes
@@ -2059,6 +2221,20 @@ document.querySelectorAll('.filtroEstado').forEach(btn=>{
     document.querySelectorAll('.filtroEstado').forEach(b=>b.setAttribute('aria-pressed', b===btn));
     pintarDetallePaquete();
   });
+});
+
+document.querySelectorAll('.filtroEstadoMapa').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    const est = btn.dataset.filtro;
+    const activo = btn.getAttribute('aria-pressed')==='true';
+    if (activo) filtroMapaEstados.delete(est); else filtroMapaEstados.add(est);
+    btn.setAttribute('aria-pressed', String(!activo));
+    pintarMapa();
+  });
+});
+document.getElementById('filtroMapaPaquete').addEventListener('change', e=>{
+  filtroMapaPaquete = e.target.value;
+  pintarMapa();
 });
 
 document.getElementById('btnExportPaquete').addEventListener('click', ()=>{
