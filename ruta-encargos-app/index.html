@@ -21,6 +21,9 @@
     --accent:#d9821f; --accent-soft:#faead2;
     --warn:#c2542f; --warn-soft:#f7e2da;
     --shadow: 0 1px 2px rgba(29,38,32,.06), 0 4px 14px rgba(29,38,32,.05);
+    --header-h: 108px;
+    --pin-top: 108px;
+    --badge-bg:#d7263d; --badge-ink:#ffffff;
   }
   @media (prefers-color-scheme: dark){
     :root:not([data-theme="light"]){
@@ -50,6 +53,10 @@
   a.mono{color:inherit;text-decoration:none;}
 
   header.top{position:sticky;top:0;z-index:5;background:var(--bg);padding:14px 0 10px;border-bottom:1px solid var(--border);margin-bottom:14px;}
+  #tab-pendientes > .panel{position:sticky;top:var(--header-h);z-index:4;}
+  #listaPendientes .card.pin-fija{position:sticky;top:var(--pin-top);z-index:3;border-color:var(--brand);box-shadow:0 4px 16px rgba(0,0,0,.18);}
+  .btn-pin{opacity:.5;}
+  .btn-pin.activo{opacity:1;}
   header.top h1{font-size:26px;font-weight:800;letter-spacing:.3px;text-transform:uppercase;}
   header.top .tag{color:var(--ink-muted);font-size:12.5px;margin-top:2px;}
 
@@ -60,10 +67,10 @@
   .tabbtn{font:inherit;font-weight:700;border:none;cursor:pointer;background:transparent;color:var(--ink-muted);}
   .tabicon{position:relative;font-size:19px;line-height:1;}
   .tabbtn .badge{
-    position:absolute;top:-6px;right:-9px;
-    background:var(--accent);color:#fff;border-radius:999px;font-size:10px;font-weight:700;
-    min-width:15px;height:15px;display:inline-flex;align-items:center;justify-content:center;padding:0 3px;
-    border:2px solid var(--surface);
+    position:absolute;top:-7px;right:-10px;
+    background:var(--badge-bg);color:var(--badge-ink);border-radius:999px;font-size:11px;font-weight:800;
+    min-width:17px;height:17px;display:inline-flex;align-items:center;justify-content:center;padding:0 4px;
+    border:2px solid var(--surface);text-shadow:0 1px 1px rgba(0,0,0,.35);
   }
   .tabbtn .badge:empty,.tabbtn .badge[data-zero="true"]{display:none;}
 
@@ -102,6 +109,8 @@
   button.ghost{background:transparent;}
   button.small{padding:6px 10px;font-size:12px;}
   button:disabled{opacity:.45;cursor:not-allowed;}
+
+  .padding-22{padding:22px;}
 
   label.file{font-size:13px;font-weight:600;border-radius:8px;border:1px dashed var(--border);background:var(--surface-2);padding:9px 13px;cursor:pointer;display:inline-flex;gap:6px;align-items:center;}
   label.file input{display:none;}
@@ -145,6 +154,10 @@
   .chip-check{display:inline-flex;align-items:center;gap:5px;background:var(--brand-soft);color:var(--brand);border-radius:999px;padding:5px 10px 5px 8px;font-size:12.5px;font-weight:600;cursor:pointer;}
   .chip-check input{margin:0;accent-color:var(--brand);}
   .chip-check:has(input:not(:checked)){background:var(--surface-2);color:var(--ink-muted);text-decoration:line-through;}
+  .chip-check.chip-warn:has(input:checked){background:var(--warn-soft);color:var(--warn);}
+  .chip-check.chip-warn input{accent-color:var(--warn);}
+  .chip-check.chip-accent:has(input:checked){background:var(--accent-soft);color:var(--accent);}
+  .chip-check.chip-accent input{accent-color:var(--accent);}
 
   .vista-paquete-detalle{display:flex;flex-direction:column;gap:14px;}
   .vista-paquete-detalle[hidden]{display:none;}
@@ -162,14 +175,17 @@
   .progreso-leyenda .total{margin-left:auto;color:var(--ink-muted);font-weight:600;}
 
   .filtroEstado[aria-pressed="true"]{background:var(--brand);color:var(--brand-ink);border-color:var(--brand);}
+  .orden-barrios-lista{display:flex;flex-direction:column;gap:6px;}
+  .orden-barrio-fila{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface-2);}
+  .orden-barrio-num{font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:12px;color:var(--ink-muted);min-width:18px;text-align:right;}
+  .orden-barrio-nombre{flex:1;font-weight:600;font-size:13.5px;}
+  .orden-barrio-botones{display:flex;gap:4px;}
   .cardlist{display:flex;flex-direction:column;gap:10px;}
   .card .who{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap;}
   .card .who .name{font-weight:700;font-size:14.5px;}
   .card .who .phone{color:var(--ink-muted);font-size:13px;text-decoration:none;}
-  .card .actions{display:flex;gap:8px;flex-wrap:wrap;}
-  .card .actions.acciones-pendiente,.card .actions.acciones-editar{display:grid;grid-template-columns:1fr 1fr;}
-  .acciones-pendiente > *:last-child{grid-column:1 / -1;}
-  .infoAdicionalRow{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;}
+  .card .actions{gap:8px;display:grid;grid-template-columns:1fr 1fr;}
+  .actions.acciones-pendiente > *:last-child{grid-column:1 / -1;}
   .icon-btn{
     border:none;background:transparent;cursor:pointer;font-size:14px;line-height:1;
     padding:2px 5px;border-radius:6px;color:var(--ink-muted);flex-shrink:0;
@@ -425,6 +441,9 @@
           <label class="field">Nombre del domiciliario
             <input type="text" id="cfgDomiciliario" placeholder="Ej: Juan Pérez">
           </label>
+          <label class="field">Teléfono del supervisor (para reportar direcciones erradas u otras incidencias)
+            <input type="tel" id="cfgSupervisor" placeholder="Ej: 3001234567">
+          </label>
           <div class="row fila-campos">
             <label class="field">Tema
               <select id="cfgTema">
@@ -470,6 +489,20 @@
             <div id="progresoAccionTxt">Procesando…</div>
             <progress id="progresoAccionBar" max="100" value="0"></progress>
           </div>
+        </div>
+      </details>
+
+      <details class="panel acordeon">
+        <summary>
+          <div>
+            <div class="label">Orden de ruta por barrio</div>
+            <div class="count">Define en qué orden visitas los barrios, en vez de alfabético</div>
+          </div>
+        </summary>
+        <div class="acordeon-body">
+          <div class="count">Este orden se usa en Pendientes cuando no hay ubicación GPS obtenida (o para los encargos sin coordenadas). Sube o baja cada barrio según el orden real de tu ruta.</div>
+          <div id="listaOrdenBarrios" class="orden-barrios-lista"></div>
+          <div class="empty" id="emptyOrdenBarrios" style="display:none;">Todavía no hay barrios en tu directorio.</div>
         </div>
       </details>
 
@@ -735,9 +768,10 @@ function waLink(telefono, texto){
   d = d.length===10 ? '57'+d : soloDigitos(telefono);
   return 'https://wa.me/' + d + (texto ? ('?text='+encodeURIComponent(texto)) : '');
 }
-function telefonoLinkHTML(telefono){
+function telefonoLinkHTML(telefono, sinWhatsapp){
   if (!telefono) return '<span class="phone mono"></span>';
-  return `<a class="phone mono" target="_blank" rel="noopener" href="${waLink(telefono)}">${esc(telefono)}</a>`;
+  const href = sinWhatsapp ? ('tel:'+soloDigitos(telefono)) : waLink(telefono);
+  return `<a class="phone mono" target="_blank" rel="noopener" href="${href}">${esc(telefono)}</a>`;
 }
 function mapsLink(lat, lon){
   return `https://www.google.com/maps?q=${lat},${lon}`;
@@ -909,6 +943,8 @@ async function getDownloads(){
 // ---------------- Estado en memoria ----------------
 let directorio=[], pendientes=[], conflictos=[], historial=[];
 let posicionActual=null;
+let pinnedPendId=null;
+let ordenBarrios=[];
 let filtroPendBarrio='', filtroPendMunicipio='', buscarPendTexto='';
 
 async function cargarEstado(){
@@ -917,6 +953,82 @@ async function cargarEstado(){
   conflictos = await getAll('conflictos');
   historial  = await getAll('historial');
   posicionActual = await getMeta('posicionActual', null);
+  pinnedPendId = await getMeta('pinnedPendId', null);
+  ordenBarrios = await getMeta('ordenBarrios', []);
+}
+
+// ---------------- Orden de ruta por barrio (en vez de alfabético) ----------------
+// Se guarda por combinación Barrio+Municipio (no solo Barrio), para no mezclar
+// barrios con el mismo nombre que pertenezcan a municipios distintos.
+function claveBarrioMunicipio(barrio, municipio){
+  return (barrio||'').trim() + '|||' + (municipio||'').trim();
+}
+function listaBarriosParaOrdenar(){
+  const mapa = new Map();
+  directorio.forEach(d=>{
+    const barrio = (d.barrio||'').trim();
+    if (!barrio) return;
+    const clave = claveBarrioMunicipio(barrio, d.municipio);
+    if (!mapa.has(clave)) mapa.set(clave, {clave, barrio, municipio:(d.municipio||'').trim()});
+  });
+  const distintos = [...mapa.keys()];
+  const enOrden = ordenBarrios.filter(c=>distintos.includes(c)).map(c=>mapa.get(c));
+  const nuevos = distintos.filter(c=>!ordenBarrios.includes(c)).map(c=>mapa.get(c))
+    .sort((a,b)=> a.municipio.localeCompare(b.municipio) || a.barrio.localeCompare(b.barrio));
+  return [...enOrden, ...nuevos];
+}
+function indiceOrdenBarrio(barrio, municipio){
+  const i = ordenBarrios.indexOf(claveBarrioMunicipio(barrio, municipio));
+  return i>=0 ? i : Infinity;
+}
+function compararPorBarrio(recA, recB){
+  const ia = indiceOrdenBarrio(recA.barrio, recA.municipio), ib = indiceOrdenBarrio(recB.barrio, recB.municipio);
+  if (ia!==ib) return ia-ib;
+  return (recA.municipio||'').localeCompare(recB.municipio||'') || (recA.barrio||'').localeCompare(recB.barrio||'');
+}
+function pintarOrdenBarrios(){
+  const cont = document.getElementById('listaOrdenBarrios');
+  const empty = document.getElementById('emptyOrdenBarrios');
+  if (!cont || !empty) return;
+  const lista = listaBarriosParaOrdenar();
+  cont.innerHTML = '';
+  empty.style.display = lista.length ? 'none' : '';
+  lista.forEach((item, i)=>{
+    const fila = document.createElement('div'); fila.className = 'orden-barrio-fila';
+    const etiqueta = item.municipio ? `${item.barrio} — ${item.municipio}` : item.barrio;
+    fila.innerHTML = `
+      <span class="orden-barrio-num">${i+1}</span>
+      <span class="orden-barrio-nombre">${esc(etiqueta)}</span>
+      <span class="orden-barrio-botones">
+        <button type="button" class="icon-btn" data-subir="${i}" ${i===0?'disabled':''} aria-label="Subir ${esc(etiqueta)}" title="Subir">▲</button>
+        <button type="button" class="icon-btn" data-bajar="${i}" ${i===lista.length-1?'disabled':''} aria-label="Bajar ${esc(etiqueta)}" title="Bajar">▼</button>
+      </span>`;
+    cont.appendChild(fila);
+  });
+  cont.querySelectorAll('[data-subir]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const i = parseInt(btn.dataset.subir, 10);
+      const nuevaLista = listaBarriosParaOrdenar().map(item=>item.clave);
+      if (i<=0) return;
+      [nuevaLista[i-1], nuevaLista[i]] = [nuevaLista[i], nuevaLista[i-1]];
+      ordenBarrios = nuevaLista;
+      await setMeta('ordenBarrios', ordenBarrios);
+      pintarOrdenBarrios();
+      pintarPendientes();
+    });
+  });
+  cont.querySelectorAll('[data-bajar]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const i = parseInt(btn.dataset.bajar, 10);
+      const nuevaLista = listaBarriosParaOrdenar().map(item=>item.clave);
+      if (i>=nuevaLista.length-1) return;
+      [nuevaLista[i], nuevaLista[i+1]] = [nuevaLista[i+1], nuevaLista[i]];
+      ordenBarrios = nuevaLista;
+      await setMeta('ordenBarrios', ordenBarrios);
+      pintarOrdenBarrios();
+      pintarPendientes();
+    });
+  });
 }
 
 // ---------------- Semilla de ejemplo ----------------
@@ -1116,7 +1228,7 @@ function pintarTodo(){
   const esDemo = directorio.some(d=>d.telefono && d.telefono.startsWith('300000000'));
   document.getElementById('demoNote').style.display = esDemo ? '' : 'none';
 
-  pintarPendientes(); pintarConflictos(); refrescarVistaHistorial(); actualizarDatalistRemitentes(); actualizarDatalistsDirectorio();
+  pintarPendientes(); pintarConflictos(); refrescarVistaHistorial(); actualizarDatalistRemitentes(); actualizarDatalistsDirectorio(); pintarOrdenBarrios();
 }
 
 function llenarSelectFiltro(select, valores, valorActual){
@@ -1166,13 +1278,27 @@ function pintarPendientes(){
     const sinCoord = enriquecidos.filter(p=>!tieneCoords(p.rec));
     conCoord.forEach(p=> p._dist = distanciaKm(posicionActual.lat,posicionActual.lon,p.rec.lat,p.rec.lon));
     conCoord.sort((a,b)=>a._dist-b._dist);
-    sinCoord.sort((a,b)=> (a.rec.barrio||'').localeCompare(b.rec.barrio||''));
+    sinCoord.sort((a,b)=> compararPorBarrio(a.rec, b.rec));
     orden = conCoord.map(p=>({...p, _sinCoordInicio:false})).concat(
       sinCoord.map((p,i)=>({...p, _sinCoordInicio:i===0 && conCoord.length>0}))
     );
     huboSinCoordSeparado = sinCoord.length>0 && conCoord.length>0;
   } else {
-    orden = [...enriquecidos].sort((a,b)=> (a.rec.barrio||'').localeCompare(b.rec.barrio||'')).map(p=>({...p,_sinCoordInicio:false}));
+    orden = [...enriquecidos].sort((a,b)=> compararPorBarrio(a.rec, b.rec)).map(p=>({...p,_sinCoordInicio:false}));
+  }
+
+  if (pinnedPendId){
+    const idx = orden.findIndex(p=>p.id===pinnedPendId);
+    if (idx>=0){
+      const [fijada] = orden.splice(idx,1);
+      if (fijada._sinCoordInicio){
+        const nuevoInicio = orden.find(p=>!tieneCoords(p.rec));
+        if (nuevoInicio) nuevoInicio._sinCoordInicio = true;
+      }
+      fijada._sinCoordInicio = false;
+      fijada._fijada = true;
+      orden.unshift(fijada);
+    }
   }
 
   orden.forEach(p=>{
@@ -1181,37 +1307,53 @@ function pintarPendientes(){
       cont.appendChild(sep);
     }
     const tipo = normalizarTipo(p.tipo);
-    const card = document.createElement('details'); card.className='card acordeon tipo-'+tipo;
+    const card = document.createElement('details'); card.className='card acordeon tipo-'+tipo+(p._fijada ? ' pin-fija' : '');
     card.setAttribute('name', 'acordeonPendientes');
     const distTxt = (p._dist!=null) ? `<span class="dist">${p._dist.toFixed(1)} km</span>` : '';
+    const linkIndicaciones = p.rec.sinWhatsapp
+      ? `<a class="btn" data-marcaespera="${esc(p.id)}" href="tel:${soloDigitos(p.rec.telefono)}">📞 Llamar para indicaciones</a>`
+      : `<a class="btn" data-marcaespera="${esc(p.id)}" target="_blank" rel="noopener" href="${waLink(p.rec.telefono, construirMensajeIndicaciones(p.rec, p.asunto, tipo))}">💬 Pedir indicaciones</a>`;
     card.innerHTML = `
       <summary>
         <div class="resumen-pendiente">
           <div class="who">
             <span class="name">${esc(p.rec.nombre)||'(sin nombre)'}</span>
-            ${distTxt}
+            <span style="display:flex;align-items:center;gap:6px;">
+              ${distTxt}
+              <button type="button" class="icon-btn btn-pin${p._fijada ? ' activo' : ''}" data-pin="${esc(p.id)}" aria-label="${p._fijada ? 'Quitar tarjeta fija' : 'Fijar esta tarjeta mientras navego'}" title="${p._fijada ? 'Quitar tarjeta fija' : 'Fijar esta tarjeta mientras navego'}">📌</button>
+            </span>
           </div>
           <div class="meta">
             <span class="chip brand">${esc(p.rec.barrio)||'Sin barrio'}</span>
+            ${p.rec.sinWhatsapp ? '<span class="chip warn">🚫 Sin WhatsApp</span>' : ''}
+            ${p.esperandoIndicaciones ? '<span class="chip accent">⏳ Esperando indicaciones</span>' : ''}
             &nbsp;${esc([p.rec.direccion, p.rec.municipio].filter(Boolean).join(', '))}
           </div>
+          <div class="meta" style="white-space:pre-line;">${esc(p.rec.infoAdicional) || '(sin información adicional)'}</div>
           <div class="meta">
-            <b>${esc(p.asunto) || '(sin asunto)'}</b> · ${tipo==='recoger' ? '🔁 Recoger' : '📦 Entregar'}${p.remitente ? ' · 🏷️ ' + esc(p.remitente) : ''}
+            ${tipo==='recoger' ? '🔁 Recoger' : '📦 Entregar'} <b>${esc(p.asunto) || '(sin asunto)'}</b>
           </div>
         </div>
       </summary>
       <div class="acordeon-body">
-        <div class="meta">${telefonoLinkHTML(p.rec.telefono)}</div>
-        <div class="meta" style="white-space:pre-line;">${esc(p.rec.infoAdicional) || '(sin información adicional)'}</div>
-        <div class="meta">${ubicacionLinkHTML(p.rec.lat, p.rec.lon)}</div>
-        <div class="actions acciones-editar">
-          <button type="button" data-editarcliente="${esc(p.rec.id||'')}">📝 Editar datos del cliente</button>
-          <button type="button" data-editarinfo="${esc(p.rec.id||'')}">✏️ Editar información adicional</button>
+        <div class="resumen-pendiente">
+          <div class="meta">Tel.: ${telefonoLinkHTML(p.rec.telefono, p.rec.sinWhatsapp)}</div>
+          <div class="meta">${ubicacionLinkHTML(p.rec.lat, p.rec.lon)}</div>
+          <label class="chip-check chip-warn">
+            <input type="checkbox" data-sinwa="${esc(p.rec.id||'')}" ${p.rec.sinWhatsapp ? 'checked' : ''}>
+            🚫 Este cliente no tiene WhatsApp
+          </label>
+          <label class="chip-check chip-accent">
+            <input type="checkbox" data-espera="${esc(p.id)}" ${p.esperandoIndicaciones ? 'checked' : ''}>
+            ⏳ Esperando que me confirme la dirección
+          </label>
         </div>
         <div class="actions acciones-pendiente">
-          <a class="btn" target="_blank" rel="noopener" href="${waLink(p.rec.telefono, construirMensajeIndicaciones(p.rec, p.asunto, tipo))}">💬 Pedir indicaciones</a>
-          <button class="ok" data-entregado="${p.id}">${tipo==='recoger' ? '✅ Marcar recogido' : '✅ Marcar entregado'}</button>
-          <button class="warn small" data-fallido="${p.id}">❌ No se pudo completar</button>
+          <button type="button" data-editarcliente="${esc(p.rec.id||'')}">📝 Corregir</button>
+          <button type="button" data-editarinfo="${esc(p.rec.id||'')}">✏️ Notas</button>
+          <button class="ok padding-22" data-entregado="${p.id}">${tipo==='recoger' ? '✅ Recogido' : '✅ Entregado'}</button>
+          <button class="warn padding-22" data-fallido="${p.id}">❌ No ${tipo==='recoger' ? 'recogido' : 'entregado'}</button>
+          ${linkIndicaciones}
         </div>
       </div>`;
     cont.appendChild(card);
@@ -1249,6 +1391,7 @@ function pintarPendientes(){
     btn.addEventListener('click', async e=>{
       const dirRec = directorio.find(d=>d.id===e.currentTarget.dataset.editarcliente);
       if (!dirRec) return;
+      const anterior = {direccion: dirRec.direccion||'', barrio: dirRec.barrio||'', municipio: dirRec.municipio||''};
       const datos = await pedirDatosCliente(dirRec);
       if (!datos) return;
       dirRec.nombre = properCase(datos.nombre);
@@ -1258,6 +1401,67 @@ function pintarPendientes(){
       await put('directorio', dirRec);
       pintarPendientes();
       actualizarDatalistsDirectorio();
+
+      const cambios = [];
+      if (anterior.direccion.trim() !== dirRec.direccion.trim()) cambios.push(`Dirección: "${anterior.direccion || '(vacía)'}" → "${dirRec.direccion || '(vacía)'}"`);
+      if (anterior.barrio.trim() !== dirRec.barrio.trim()) cambios.push(`Barrio: "${anterior.barrio || '(vacío)'}" → "${dirRec.barrio || '(vacío)'}"`);
+      if (anterior.municipio.trim() !== dirRec.municipio.trim()) cambios.push(`Municipio: "${anterior.municipio || '(vacío)'}" → "${dirRec.municipio || '(vacío)'}"`);
+      if (cambios.length){
+        const reportar = await pedirConfirmacion(
+          '¿Quieres reportar esta corrección de dirección a tu supervisor por WhatsApp?',
+          'Sí, reportar', 'No'
+        );
+        if (reportar){
+          const telefonoSupervisor = await getMeta('telefonoSupervisor', '');
+          if (!telefonoSupervisor){
+            await mostrarAlerta('Todavía no has guardado el teléfono del supervisor. Ve a Configuración → Preferencias para agregarlo, y luego podrás reportar directamente por WhatsApp.');
+            return;
+          }
+          const mensaje = [`Corrección de dirección — ${dirRec.nombre} (${dirRec.telefono})`, ...cambios].join('\n');
+          window.open(waLink(telefonoSupervisor, mensaje), '_blank', 'noopener');
+        }
+      }
+    });
+  });
+
+  cont.querySelectorAll('[data-pin]').forEach(btn=>{
+    btn.addEventListener('click', e=>{
+      e.preventDefault();
+      e.stopPropagation();
+      const id = e.currentTarget.dataset.pin;
+      pinnedPendId = (pinnedPendId === id) ? null : id;
+      setMeta('pinnedPendId', pinnedPendId);
+      pintarPendientes();
+    });
+  });
+
+  cont.querySelectorAll('[data-sinwa]').forEach(chk=>{
+    chk.addEventListener('change', async e=>{
+      const dirRec = directorio.find(d=>d.id===e.currentTarget.dataset.sinwa);
+      if (!dirRec) return;
+      dirRec.sinWhatsapp = e.currentTarget.checked;
+      await put('directorio', dirRec);
+      pintarPendientes();
+    });
+  });
+
+  cont.querySelectorAll('[data-espera]').forEach(chk=>{
+    chk.addEventListener('change', async e=>{
+      const pend = pendientes.find(x=>x.id===e.currentTarget.dataset.espera);
+      if (!pend) return;
+      pend.esperandoIndicaciones = e.currentTarget.checked;
+      await put('pendientes', pend);
+      pintarPendientes();
+    });
+  });
+
+  cont.querySelectorAll('[data-marcaespera]').forEach(link=>{
+    link.addEventListener('click', async e=>{
+      const pend = pendientes.find(x=>x.id===e.currentTarget.dataset.marcaespera);
+      if (!pend || pend.esperandoIndicaciones) return;
+      pend.esperandoIndicaciones = true;
+      await put('pendientes', pend);
+      pintarPendientes();
     });
   });
 }
@@ -1628,8 +1832,28 @@ document.querySelectorAll('.tabbtn').forEach(btn=>{
   btn.addEventListener('click', ()=>{
     document.querySelectorAll('.tabbtn').forEach(b=>b.setAttribute('aria-selected', b.dataset.tab===btn.dataset.tab));
     document.querySelectorAll('.panelview').forEach(p=>p.hidden = (p.id !== 'tab-'+btn.dataset.tab));
+    ajustarAlturaHeader();
   });
 });
+
+// Mide la altura real del header pegajoso para que el panel de Pendientes
+// se pegue justo debajo (el header puede cambiar de alto según el ancho/idioma).
+function ajustarAlturaHeader(){
+  const header = document.querySelector('header.top');
+  const headerH = header ? header.offsetHeight : 0;
+  document.documentElement.style.setProperty('--header-h', headerH + 'px');
+
+  const panel = document.querySelector('#tab-pendientes > .panel');
+  const panelH = panel ? panel.offsetHeight : 0;
+  document.documentElement.style.setProperty('--pin-top', (headerH + panelH) + 'px');
+}
+window.addEventListener('resize', ajustarAlturaHeader);
+window.addEventListener('orientationchange', ajustarAlturaHeader);
+window.addEventListener('load', ajustarAlturaHeader);
+document.querySelectorAll('#tab-pendientes > .panel details.acordeon').forEach(det=>{
+  det.addEventListener('toggle', ajustarAlturaHeader);
+});
+ajustarAlturaHeader();
 
 // ---------------- Paquetes: navegación, filtro y export ----------------
 document.getElementById('btnVolverPaquetes').addEventListener('click', volverAPaquetes);
@@ -2050,13 +2274,13 @@ async function generarZipRespaldo(){
   const zip = new JSZip();
 
   zip.file('directorio.csv', csvRespaldo(
-    ['id','nombre','telefono','direccion','barrio','municipio','infoAdicional','lat','lon'],
-    directorio.map(d=>[d.id,d.nombre,d.telefono,d.direccion,d.barrio,d.municipio,d.infoAdicional,d.lat,d.lon])
+    ['id','nombre','telefono','direccion','barrio','municipio','infoAdicional','lat','lon','sinWhatsapp'],
+    directorio.map(d=>[d.id,d.nombre,d.telefono,d.direccion,d.barrio,d.municipio,d.infoAdicional,d.lat,d.lon,d.sinWhatsapp?'1':''])
   ));
 
   zip.file('pendientes.csv', csvRespaldo(
-    ['id','directorioId','asunto','tipo','remitente','paqueteId','creado'],
-    pendientes.map(p=>[p.id,p.directorioId,p.asunto,p.tipo,p.remitente,p.paqueteId,p.creado])
+    ['id','directorioId','asunto','tipo','remitente','paqueteId','creado','esperandoIndicaciones'],
+    pendientes.map(p=>[p.id,p.directorioId,p.asunto,p.tipo,p.remitente,p.paqueteId,p.creado,p.esperandoIndicaciones?'1':''])
   ));
 
   zip.file('conflictos.csv', csvRespaldo(
@@ -2080,7 +2304,7 @@ async function generarZipRespaldo(){
   const metaAll = await getAll('meta');
   zip.file('meta.csv', csvRespaldo(
     ['k','v'],
-    metaAll.map(m=>[m.k, (m.v!==null && typeof m.v==='object') ? JSON.stringify(m.v) : m.v])
+    metaAll.map(m=>[m.k, JSON.stringify(m.v)])
   ));
 
   return zip;
@@ -2169,13 +2393,15 @@ document.getElementById('fileImportRespaldo').addEventListener('change', async e
     for (const r of dirRows){
       await put('directorio', {
         id:r.id||uid(), nombre:r.nombre||'', telefono:r.telefono||'', direccion:r.direccion||'',
-        barrio:r.barrio||'', municipio:r.municipio||'', infoAdicional:r.infoAdicional||'', lat:numOrNull(r.lat), lon:numOrNull(r.lon)
+        barrio:r.barrio||'', municipio:r.municipio||'', infoAdicional:r.infoAdicional||'', lat:numOrNull(r.lat), lon:numOrNull(r.lon),
+        sinWhatsapp: r.sinWhatsapp==='1'
       });
     }
     for (const r of pendRows){
       await put('pendientes', {
         id:r.id||uid(), directorioId:r.directorioId||'', asunto:r.asunto||'', tipo:normalizarTipo(r.tipo),
-        remitente:r.remitente||'', paqueteId:r.paqueteId||'', creado:r.creado||new Date().toISOString()
+        remitente:r.remitente||'', paqueteId:r.paqueteId||'', creado:r.creado||new Date().toISOString(),
+        esperandoIndicaciones: r.esperandoIndicaciones==='1'
       });
     }
     for (const r of confRows){
@@ -2238,9 +2464,11 @@ function aplicarTema(tema){
 }
 async function cargarConfiguracion(){
   const domiciliario = await getMeta('nombreDomiciliario', '');
+  const telefonoSupervisor = await getMeta('telefonoSupervisor', '');
   const tema = await getMeta('tema', 'auto');
   const idioma = await getMeta('idioma', 'es');
   document.getElementById('cfgDomiciliario').value = domiciliario;
+  document.getElementById('cfgSupervisor').value = telefonoSupervisor;
   document.getElementById('cfgTema').value = tema;
   document.getElementById('cfgIdioma').value = idioma;
   aplicarTema(tema);
@@ -2250,6 +2478,9 @@ async function cargarConfiguracion(){
 }
 document.getElementById('cfgDomiciliario').addEventListener('change', e=>{
   setMeta('nombreDomiciliario', e.target.value.trim());
+});
+document.getElementById('cfgSupervisor').addEventListener('change', e=>{
+  setMeta('telefonoSupervisor', e.target.value.trim());
 });
 document.getElementById('cfgTema').addEventListener('change', e=>{
   aplicarTema(e.target.value);
