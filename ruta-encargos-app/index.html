@@ -986,6 +986,17 @@ function compararPorBarrio(recA, recB){
   if (ia!==ib) return ia-ib;
   return (recA.municipio||'').localeCompare(recB.municipio||'') || (recA.barrio||'').localeCompare(recB.barrio||'');
 }
+async function moverBarrio(desde, hasta){
+  const nuevaLista = listaBarriosParaOrdenar().map(item=>item.clave);
+  hasta = Math.max(0, Math.min(nuevaLista.length-1, hasta));
+  if (desde===hasta) return;
+  const [clave] = nuevaLista.splice(desde, 1);
+  nuevaLista.splice(hasta, 0, clave);
+  ordenBarrios = nuevaLista;
+  await setMeta('ordenBarrios', ordenBarrios);
+  pintarOrdenBarrios();
+  pintarPendientes();
+}
 function pintarOrdenBarrios(){
   const cont = document.getElementById('listaOrdenBarrios');
   const empty = document.getElementById('emptyOrdenBarrios');
@@ -996,38 +1007,20 @@ function pintarOrdenBarrios(){
   lista.forEach((item, i)=>{
     const fila = document.createElement('div'); fila.className = 'orden-barrio-fila';
     const etiqueta = item.municipio ? `${item.barrio} — ${item.municipio}` : item.barrio;
+    const esPrimero = i===0, esUltimo = i===lista.length-1;
     fila.innerHTML = `
       <span class="orden-barrio-num">${i+1}</span>
       <span class="orden-barrio-nombre">${esc(etiqueta)}</span>
       <span class="orden-barrio-botones">
-        <button type="button" class="icon-btn" data-subir="${i}" ${i===0?'disabled':''} aria-label="Subir ${esc(etiqueta)}" title="Subir">▲</button>
-        <button type="button" class="icon-btn" data-bajar="${i}" ${i===lista.length-1?'disabled':''} aria-label="Bajar ${esc(etiqueta)}" title="Bajar">▼</button>
+        <button type="button" class="icon-btn" data-mover="${i}" data-a="0" ${esPrimero?'disabled':''} aria-label="Mover ${esc(etiqueta)} al inicio" title="Mover al inicio">⏫</button>
+        <button type="button" class="icon-btn" data-mover="${i}" data-a="${i-1}" ${esPrimero?'disabled':''} aria-label="Subir ${esc(etiqueta)}" title="Subir">▲</button>
+        <button type="button" class="icon-btn" data-mover="${i}" data-a="${i+1}" ${esUltimo?'disabled':''} aria-label="Bajar ${esc(etiqueta)}" title="Bajar">▼</button>
+        <button type="button" class="icon-btn" data-mover="${i}" data-a="${lista.length-1}" ${esUltimo?'disabled':''} aria-label="Mover ${esc(etiqueta)} al final" title="Mover al final">⏬</button>
       </span>`;
     cont.appendChild(fila);
   });
-  cont.querySelectorAll('[data-subir]').forEach(btn=>{
-    btn.addEventListener('click', async ()=>{
-      const i = parseInt(btn.dataset.subir, 10);
-      const nuevaLista = listaBarriosParaOrdenar().map(item=>item.clave);
-      if (i<=0) return;
-      [nuevaLista[i-1], nuevaLista[i]] = [nuevaLista[i], nuevaLista[i-1]];
-      ordenBarrios = nuevaLista;
-      await setMeta('ordenBarrios', ordenBarrios);
-      pintarOrdenBarrios();
-      pintarPendientes();
-    });
-  });
-  cont.querySelectorAll('[data-bajar]').forEach(btn=>{
-    btn.addEventListener('click', async ()=>{
-      const i = parseInt(btn.dataset.bajar, 10);
-      const nuevaLista = listaBarriosParaOrdenar().map(item=>item.clave);
-      if (i>=nuevaLista.length-1) return;
-      [nuevaLista[i], nuevaLista[i+1]] = [nuevaLista[i+1], nuevaLista[i]];
-      ordenBarrios = nuevaLista;
-      await setMeta('ordenBarrios', ordenBarrios);
-      pintarOrdenBarrios();
-      pintarPendientes();
-    });
+  cont.querySelectorAll('[data-mover]').forEach(btn=>{
+    btn.addEventListener('click', ()=> moverBarrio(parseInt(btn.dataset.mover,10), parseInt(btn.dataset.a,10)));
   });
 }
 
