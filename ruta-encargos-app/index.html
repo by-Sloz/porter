@@ -2858,6 +2858,41 @@ function agruparValores(valores){
   return [...grupos.values()];
 }
 
+async function corregirValorPuntual(campo, valorViejo, valorNuevo){
+  const afectados = directorio.filter(d=>(d[campo]||'').trim()===valorViejo);
+  if (!afectados.length){ await mostrarAlerta('No hay ningún registro con ese valor actualmente.'); return; }
+  const ok = await pedirConfirmacion(
+    `¿Corregir "${valorViejo}" a "${valorNuevo}" en los ${afectados.length} registro(s) que lo tienen como ${campo==='barrio'?'Barrio':'Municipio'}?`,
+    'Corregir', 'Cancelar'
+  );
+  if (!ok) return;
+  await guardarRespaldoAccion(`Corrección de ${campo==='barrio'?'Barrio':'Municipio'}: "${valorViejo}" → "${valorNuevo}"`);
+  await conProgreso('Corrigiendo', afectados.length, async actualizar=>{
+    for (let i=0;i<afectados.length;i++){
+      afectados[i][campo] = valorNuevo;
+      await put('directorio', afectados[i]);
+      if (i%20===0 || i===afectados.length-1){ actualizar(i+1); await new Promise(r=>setTimeout(r,0)); }
+    }
+  });
+
+  let cambioRutas = false;
+  if (campo==='barrio'){
+    const municipiosAfectados = [...new Set(afectados.map(d=>(d.municipio||'').trim()).filter(Boolean))];
+    for (const m of municipiosAfectados){
+      if (renombrarBarrioEnRutasSiQuedoSinUso(m, valorViejo, valorNuevo)) cambioRutas = true;
+    }
+  } else if (renombrarMunicipioEnRutasSiQuedoSinUso(valorViejo, valorNuevo)){
+    cambioRutas = true;
+  }
+  if (cambioRutas) await guardarRutas();
+
+  pintarTodo();
+  pintarGruposDepurar();
+  let mensaje = `Se corrigieron ${afectados.length} registro(s) de "${valorViejo}" a "${valorNuevo}".`;
+  if (cambioRutas) mensaje += ' También se actualizó el nombre en las rutas de entrega que lo usaban.';
+  await mostrarAlerta(mensaje);
+}
+
 function pintarGruposDepurar(){
   const campo = campoDepurarActivo;
   const cont = document.getElementById('listaGruposDepurar'); cont.innerHTML = '';
@@ -2868,6 +2903,33 @@ function pintarGruposDepurar(){
   grupos = grupos.filter(g=>!gruposDescartados.has(firmaGrupo(campo, g)));
 
   document.getElementById('emptyDepurar').style.display = grupos.length ? 'none' : '';
+
+  const valoresParaCorregir = [...valores.filter(v=>v.raw)].sort((a,b)=>a.raw.localeCompare(b.raw));
+  if (valoresParaCorregir.length){
+    const cardCorregir = document.createElement('div'); cardCorregir.className = 'card';
+    cardCorregir.innerHTML = `
+      <div class="who"><span class="name">Corregir un nombre puntual</span></div>
+      <div class="meta">Elige cualquier ${campo==='barrio'?'barrio':'municipio'} actual y escribe el nombre correcto. Se aplica a todos los registros que lo tengan, aunque no tenga variantes parecidas.</div>
+      <div class="row fila-campos">
+        <label class="field">Valor actual
+          <select id="selectCorregirValor">${valoresParaCorregir.map(v=>`<option value="${esc(v.raw)}">${esc(v.raw)} (${v.count})</option>`).join('')}</select>
+        </label>
+        <label class="field">Nombre correcto
+          <input type="text" id="inputCorregirNuevo" placeholder="Escribe el nombre correcto">
+        </label>
+      </div>
+      <div class="actions">
+        <button type="button" class="primary small" id="btnCorregirValor">Corregir</button>
+      </div>`;
+    cont.appendChild(cardCorregir);
+    document.getElementById('btnCorregirValor').addEventListener('click', async ()=>{
+      const valorViejo = document.getElementById('selectCorregirValor').value;
+      const valorNuevo = document.getElementById('inputCorregirNuevo').value.trim();
+      if (!valorNuevo){ await mostrarAlerta('Escribe el nombre correcto antes de corregir.'); return; }
+      if (valorNuevo===valorViejo){ await mostrarAlerta('El nombre correcto es igual al actual.'); return; }
+      await corregirValorPuntual(campo, valorViejo, valorNuevo);
+    });
+  }
 
   grupos.forEach((grupo, idx)=>{
     const esVacio = grupo.length===1 && grupo[0].esVacio;
