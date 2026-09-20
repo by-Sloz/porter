@@ -168,9 +168,10 @@
   .vista-paquete-detalle[hidden]{display:none;}
   .card.clicable{cursor:pointer;position:relative;}
   .card.clicable:hover{border-color:var(--brand);}
-  .card.clicable .who{padding-right:84px;}
+  .card.clicable .who{padding-right:122px;}
   .card.clicable .borrar-paquete{position:absolute;top:10px;right:10px;font-size:16px;background:var(--surface);border:1px solid var(--border);}
   .card.clicable .editar-paquete{position:absolute;top:10px;right:48px;font-size:16px;background:var(--surface);border:1px solid var(--border);}
+  .card.clicable .reporte-paquete{position:absolute;top:10px;right:86px;font-size:16px;background:var(--surface);border:1px solid var(--border);}
   .progreso{display:flex;height:10px;border-radius:999px;overflow:hidden;background:var(--surface-2);}
   .progreso-seg{height:100%;}
   .progreso-seg.ok{background:var(--ok);}
@@ -179,10 +180,11 @@
   .progreso-leyenda{display:flex;gap:12px;font-size:12px;font-weight:600;color:var(--ink-muted);font-variant-numeric:tabular-nums;}
   .progreso-leyenda .total{margin-left:auto;color:var(--ink-muted);font-weight:600;}
 
-  .filtroEstado[aria-pressed="true"]{background:var(--brand);color:var(--brand-ink);border-color:var(--brand);}
   .chip-toggle{display:inline-flex;align-items:center;gap:5px;min-width:44px;justify-content:center;padding:7px 12px;border-radius:999px;font-size:12.5px;font-weight:700;border:2px solid transparent;background:var(--surface-2);color:var(--ink-muted);cursor:pointer;font-family:inherit;}
   .chip-toggle[aria-pressed="true"]{background:var(--brand);color:var(--brand-ink);border-color:var(--brand-ink);}
   .chip-toggle-info{cursor:default;background:var(--surface-2);color:var(--ink-muted);}
+  .filtros-grid{display:grid;grid-auto-flow:dense;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:6px;}
+  .filtros-grid > *{border-radius:5px;}
   select.select-etiqueta{border:none;background:transparent;padding:0;margin:0;width:auto;max-width:100%;font-size:16px;font-weight:700;color:var(--ink);-webkit-appearance:auto;appearance:auto;}
   select option{background-color:var(--surface);color:var(--ink);}
   .orden-barrios-lista{display:flex;flex-direction:column;gap:6px;max-height:40vh;overflow-y:auto;}
@@ -403,12 +405,11 @@
     <div id="vistaDetallePaquete" class="vista-paquete-detalle" hidden>
       <button type="button" class="ghost small" id="btnVolverPaquetes" style="align-self:flex-start;">← Volver a Paquetes</button>
       <div class="card" id="detalleResumen"></div>
-      <div class="row" style="gap:6px;flex-wrap:wrap;">
-        <button type="button" class="small filtroEstado" data-filtro="todos" aria-pressed="true">Todos</button>
-        <button type="button" class="small filtroEstado" data-filtro="completado" aria-pressed="false">✅ Completados</button>
-        <button type="button" class="small filtroEstado" data-filtro="fallido" aria-pressed="false">⚠️ No completados</button>
-        <button type="button" class="small filtroEstado" data-filtro="pendiente" aria-pressed="false">⏳ Pendientes</button>
-        <button class="small" id="btnExportPaquete" style="margin-left:auto;">Exportar</button>
+      <div class="filtros-grid">
+        <button type="button" class="chip-toggle filtroEstado" data-filtro="completado" aria-pressed="true">✅ Completados</button>
+        <button type="button" class="chip-toggle filtroEstado" data-filtro="fallido" aria-pressed="true">⚠️ No completados</button>
+        <button type="button" class="chip-toggle filtroEstado" data-filtro="pendiente" aria-pressed="true">⏳ Pendientes</button>
+        <button class="small" id="btnExportPaquete">Exportar</button>
       </div>
       <div class="cardlist" id="listaDetallePaquete"></div>
       <div class="empty" id="emptyDetallePaquete">No hay encargos con ese filtro.</div>
@@ -1924,7 +1925,7 @@ function obtenerItemsPaquete(paqueteId){
 }
 
 let paqueteActivo = null;
-let filtroActivo = 'todos';
+let filtroActivos = new Set(['completado','fallido','pendiente']);
 
 function refrescarVistaHistorial(){
   const paquetesConPendientes = calcularResumenPaquetes().filter(e=>e.pendientesN>0).length;
@@ -2002,6 +2003,18 @@ function pintarPaquetes(){
     });
     card.appendChild(btnEditar);
 
+    const btnReporte = document.createElement('button');
+    btnReporte.type = 'button';
+    btnReporte.className = 'icon-btn reporte-paquete';
+    btnReporte.setAttribute('aria-label', 'Generar reporte');
+    btnReporte.title = 'Generar reporte de este paquete';
+    btnReporte.textContent = '📄';
+    btnReporte.addEventListener('click', ev=>{
+      ev.stopPropagation();
+      mostrarReporte(construirReportePaquete(e));
+    });
+    card.appendChild(btnReporte);
+
     const btnBorrar = document.createElement('button');
     btnBorrar.type = 'button';
     btnBorrar.className = 'icon-btn borrar-paquete';
@@ -2055,6 +2068,65 @@ async function editarPaquete(resumen){
   await mostrarAlerta(`Se actualizaron ${total} encargo(s) con el nuevo Asunto/Vinculación.`);
 }
 
+function construirReportePaquete(resumen){
+  const items = obtenerItemsPaquete(resumen.paqueteId);
+  const fallidos = items.filter(it=>it.estado==='fallido');
+  const asuntoTxt = [...resumen.asuntos].join(', ') || '(sin asunto)';
+  const fechaTxt = formatearFechaPaquete(resumen.fecha);
+  const tipoTxt = resumen.tipo==='recoger' ? 'Recoger' : 'Entregar';
+  const total = resumen.completados + resumen.fallidos + resumen.pendientesN;
+
+  // Sin emoji: WhatsApp no los decodifica de forma confiable al recibir el texto vía wa.me.
+  // Se usa *negrita* nativa de WhatsApp para dar jerarquía visual en su lugar.
+  let txt = `*${tipoTxt} — ${asuntoTxt}*\n${fechaTxt}`;
+  if (resumen.remitente) txt += `\nVinculación: ${resumen.remitente}`;
+  txt += `\n\n*Resumen*`;
+  txt += `\nCompletados: ${resumen.completados}`;
+  txt += `\nNo completados: ${resumen.fallidos}`;
+  txt += `\nPendientes: ${resumen.pendientesN}`;
+  txt += `\nTotal: ${total}`;
+
+  if (fallidos.length){
+    txt += `\n\n*Detalle de no completados*`;
+    fallidos.forEach(it=>{
+      txt += `\n- ${it.nombre || '(sin nombre)'} (${it.telefono || 'sin teléfono'}): ${it.causa || 'sin motivo registrado'}`;
+    });
+  }
+  return txt;
+}
+
+function mostrarReporte(texto){
+  const overlay = document.getElementById('modalOverlay');
+  document.getElementById('modalMensaje').textContent = 'Reporte del paquete';
+  const extra = document.getElementById('modalExtra'); extra.innerHTML = '';
+  const textarea = document.createElement('textarea');
+  textarea.readOnly = true; textarea.value = texto;
+  textarea.style.minHeight = '160px';
+  extra.appendChild(textarea);
+
+  const acciones = document.getElementById('modalAcciones'); acciones.innerHTML = '';
+  const btnCopiar = document.createElement('button'); btnCopiar.className = 'ghost small'; btnCopiar.textContent = '📋 Copiar';
+  btnCopiar.addEventListener('click', async ()=>{
+    try{
+      await navigator.clipboard.writeText(texto);
+      btnCopiar.textContent = '✅ Copiado';
+      setTimeout(()=>{ btnCopiar.textContent = '📋 Copiar'; }, 1500);
+    }catch(err){
+      textarea.focus(); textarea.select();
+      await mostrarAlerta('No se pudo copiar automáticamente. El texto quedó seleccionado — cópialo manualmente.');
+    }
+  });
+  const btnWhatsapp = document.createElement('button'); btnWhatsapp.className = 'ghost small'; btnWhatsapp.textContent = '💬 Enviar';
+  btnWhatsapp.addEventListener('click', async ()=>{
+    const telefonoSupervisor = await getMeta('telefonoSupervisor', '');
+    window.open(waLink(telefonoSupervisor, texto), '_blank', 'noopener');
+  });
+  const btnCerrar = document.createElement('button'); btnCerrar.className = 'primary small'; btnCerrar.textContent = 'Cerrar';
+  btnCerrar.addEventListener('click', ()=>{ overlay.hidden = true; });
+  acciones.appendChild(btnCopiar); acciones.appendChild(btnWhatsapp); acciones.appendChild(btnCerrar);
+  overlay.hidden = false;
+}
+
 async function borrarPaquete(resumen){
   const total = resumen.completados + resumen.fallidos + resumen.pendientesN;
   const ok = await pedirConfirmacion(
@@ -2078,8 +2150,8 @@ async function borrarPaquete(resumen){
 
 function abrirDetallePaquete(paqueteId){
   paqueteActivo = paqueteId;
-  filtroActivo = 'todos';
-  document.querySelectorAll('.filtroEstado').forEach(b=>b.setAttribute('aria-pressed', b.dataset.filtro==='todos'));
+  filtroActivos = new Set(['completado','fallido','pendiente']);
+  document.querySelectorAll('.filtroEstado').forEach(b=>b.setAttribute('aria-pressed', 'true'));
   document.getElementById('vistaPaquetes').hidden = true;
   document.getElementById('vistaDetallePaquete').hidden = false;
   pintarDetallePaquete();
@@ -2094,7 +2166,7 @@ function pintarDetallePaquete(){
   resumenCard.innerHTML = construirResumenPaqueteHTML(resumen);
 
   const items = obtenerItemsPaquete(paqueteActivo);
-  const filtrados = filtroActivo==='todos' ? items : items.filter(it=>it.estado===filtroActivo);
+  const filtrados = items.filter(it=>filtroActivos.has(it.estado));
 
   const cont = document.getElementById('listaDetallePaquete'); cont.innerHTML='';
   document.getElementById('emptyDetallePaquete').style.display = filtrados.length ? 'none' : '';
@@ -2217,8 +2289,10 @@ document.getElementById('btnVolverPaquetes').addEventListener('click', volverAPa
 
 document.querySelectorAll('.filtroEstado').forEach(btn=>{
   btn.addEventListener('click', ()=>{
-    filtroActivo = btn.dataset.filtro;
-    document.querySelectorAll('.filtroEstado').forEach(b=>b.setAttribute('aria-pressed', b===btn));
+    const est = btn.dataset.filtro;
+    const activo = btn.getAttribute('aria-pressed')==='true';
+    if (activo) filtroActivos.delete(est); else filtroActivos.add(est);
+    btn.setAttribute('aria-pressed', String(!activo));
     pintarDetallePaquete();
   });
 });
@@ -2240,11 +2314,11 @@ document.getElementById('filtroMapaPaquete').addEventListener('change', e=>{
 document.getElementById('btnExportPaquete').addEventListener('click', ()=>{
   if (!paqueteActivo) return;
   const items = obtenerItemsPaquete(paqueteActivo);
-  const filtrados = filtroActivo==='todos' ? items : items.filter(it=>it.estado===filtroActivo);
+  const filtrados = items.filter(it=>filtroActivos.has(it.estado));
   if (filtrados.length===0){ mostrarAlerta('No hay encargos con ese filtro para exportar.'); return; }
 
   const estadoTxt = it => it.estado==='completado' ? 'Completado' : it.estado==='fallido' ? 'No Completado' : 'Pendiente';
-  const sufijoFiltro = filtroActivo==='todos' ? '' : ('_' + filtroActivo);
+  const sufijoFiltro = filtroActivos.size===3 ? '' : ('_' + [...filtroActivos].join('-'));
   const nombreArchivo = 'paquete_' + paqueteActivo.replace(/[^a-z0-9]+/gi,'_') + sufijoFiltro + '.csv';
   exportarCSV(nombreArchivo,
     ['Fecha','Hora','Asunto','Remitente','Nombre','Teléfono','Dirección','Barrio','Municipio','Info Adicional','Estado','Motivo_No_Completado','Latitud','Longitud'],
