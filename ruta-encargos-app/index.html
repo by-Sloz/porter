@@ -2071,6 +2071,7 @@ async function editarPaquete(resumen){
 function construirReportePaquete(resumen){
   const items = obtenerItemsPaquete(resumen.paqueteId);
   const fallidos = items.filter(it=>it.estado==='fallido');
+  const pendientesItems = items.filter(it=>it.estado==='pendiente');
   const asuntoTxt = [...resumen.asuntos].join(', ') || '(sin asunto)';
   const fechaTxt = formatearFechaPaquete(resumen.fecha);
   const tipoTxt = resumen.tipo==='recoger' ? 'Recoger' : 'Entregar';
@@ -2086,8 +2087,16 @@ function construirReportePaquete(resumen){
   txt += `\nPendientes: ${resumen.pendientesN}`;
   txt += `\nTotal: ${total}`;
 
+  if (pendientesItems.length){
+    txt += `\n\n*Pendientes*`;
+    pendientesItems.forEach(it=>{
+      const lugar = [it.barrio, it.municipio].filter(Boolean).join(', ');
+      txt += `\n- ${it.nombre || '(sin nombre)'} (${it.telefono || 'sin teléfono'})${lugar ? ' — ' + lugar : ''}`;
+    });
+  }
+
   if (fallidos.length){
-    txt += `\n\n*Detalle de no completados*`;
+    txt += `\n\n*No completados*`;
     fallidos.forEach(it=>{
       txt += `\n- ${it.nombre || '(sin nombre)'} (${it.telefono || 'sin teléfono'}): ${it.causa || 'sin motivo registrado'}`;
     });
