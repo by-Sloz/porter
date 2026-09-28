@@ -191,8 +191,8 @@
   .orden-barrio-fila{display:flex;flex-direction:column;gap:6px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface-2);}
   .orden-barrio-num{font-family:'IBM Plex Mono',ui-monospace,monospace;color:var(--ink-muted);margin-right:4px;}
   .orden-barrio-nombre{font-weight:600;font-size:13.5px;}
-  .orden-barrio-botones{display:flex;gap:4px;}
-  .orden-barrio-botones .icon-btn{flex:1;background:var(--surface);border:1px solid var(--border);text-align:center;}
+  .orden-barrio-botones{display:flex;gap:6px;justify-content:flex-end;}
+  .orden-barrio-botones .icon-btn{min-width:36px;text-align:center;}
   .orden-barrio-botones .icon-btn:disabled{opacity:.35;}
   .cardlist{display:flex;flex-direction:column;gap:10px;}
   .card .who{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap;}
@@ -371,6 +371,9 @@
     </div>
     <div class="cardlist" id="listaConflictos"></div>
     <div class="empty" id="emptyConf">No hay conflictos por revisar.</div>
+
+    <div id="listaBarriosSinRevisar" class="cardlist" style="margin-top:14px;"></div>
+    <div class="empty" id="emptyBarriosSinRevisar" style="display:none;">No hay barrios pendientes de revisión.</div>
   </section>
 
   <!-- HISTORIAL -->
@@ -451,9 +454,11 @@
         <div class="formgrid">
           <label class="field span2">Teléfono<input type="tel" id="mTelefono"></label>
           <label class="field span2">Nombre<input type="text" id="mNombre"></label>
-          <label class="field">Barrio 📋<input type="text" id="mBarrio" list="barriosList" placeholder="Elige uno existente o escribe uno nuevo"></label>
-          <label class="field">Municipio 📋<input type="text" id="mMunicipio" list="municipiosList" placeholder="Elige uno existente o escribe uno nuevo"></label>
-          <datalist id="barriosList"></datalist>
+          <label class="field">Municipio 📋<input type="text" id="mMunicipio" list="municipiosList" placeholder="Escribe el municipio"></label>
+          <label class="field">Barrio
+            <select id="mBarrio"><option value="">(escribe primero el municipio)</option></select>
+          </label>
+          <input type="text" id="mBarrioNuevo" class="span2" placeholder="Escribe el nombre del barrio nuevo (se agregará al catálogo)" hidden>
           <datalist id="municipiosList"></datalist>
           <label class="field span2">Dirección<input type="text" id="mDireccion"></label>
           <label class="field span2">Información adicional<input type="text" id="mInfoAdicional" placeholder="Referencias, piso, torre..."></label>
@@ -517,17 +522,6 @@
             <summary>Lo que ves ahora es de ejemplo — importa tu propio CSV o agrega encargos cuando quieras.</summary>
             Nombres, direcciones y teléfonos inventados solo para mostrar cómo funciona la app.
           </details>
-
-          <h3 class="subhead">Limpieza de datos</h3>
-          <div class="row" style="gap:8px;flex-wrap:wrap;">
-            <button type="button" class="small" id="btnNormalizarDir">🧹 Normalizar nombres/barrios/municipios</button>
-            <button type="button" class="small" id="btnDepurarDir">🔍 Depurar barrios y municipios</button>
-          </div>
-          <button type="button" class="ghost small" id="btnDeshacerAccion" hidden style="align-self:flex-start;">↩️ Deshacer última acción</button>
-          <div class="count" id="progresoAccion" hidden>
-            <div id="progresoAccionTxt">Procesando…</div>
-            <progress id="progresoAccionBar" max="100" value="0"></progress>
-          </div>
         </div>
       </details>
 
@@ -545,6 +539,32 @@
           </div>
           <div id="listaRutas" class="cardlist"></div>
           <div class="empty" id="emptyRutas" style="display:none;">Todavía no has creado ninguna ruta.</div>
+        </div>
+      </details>
+
+      <details class="panel acordeon">
+        <summary>
+          <div>
+            <div class="label">Catálogo de barrios</div>
+            <div class="count">Barrios reconocidos por municipio (los usan Agregar/Corregir y Rutas)</div>
+          </div>
+        </summary>
+        <div class="acordeon-body">
+          <div class="count">Toca "✏️ Editar barrios" en un municipio para renombrar o quitar una entrada. Los barrios nuevos que llegan por importación se revisan aparte, en la pestaña Conflictos.</div>
+
+          <h3 class="subhead">Limpieza de datos</h3>
+          <div class="row" style="gap:8px;flex-wrap:wrap;">
+            <button type="button" class="small" id="btnNormalizarDir">🧹 Normalizar nombres/barrios/municipios</button>
+            <button type="button" class="small" id="btnDepurarDir">🔍 Depurar barrios y municipios</button>
+          </div>
+          <button type="button" class="ghost small" id="btnDeshacerAccion" hidden style="align-self:flex-start;">↩️ Deshacer última acción</button>
+          <div class="count" id="progresoAccion" hidden>
+            <div id="progresoAccionTxt">Procesando…</div>
+            <progress id="progresoAccionBar" max="100" value="0"></progress>
+          </div>
+
+          <div id="listaCatalogoBarrios" class="cardlist"></div>
+          <div class="empty" id="emptyCatalogoBarrios" style="display:none;">Todavía no hay barrios en el catálogo.</div>
         </div>
       </details>
 
@@ -715,7 +735,7 @@ function pedirDatosCliente(dirRec){
     document.getElementById('modalMensaje').textContent = 'Editar datos del cliente';
     const extra = document.getElementById('modalExtra'); extra.innerHTML = '';
 
-    const campo = (label, valor, listId, placeholder)=>{
+    const campoTexto = (label, valor, listId, placeholder)=>{
       const wrap = document.createElement('label'); wrap.className = 'field';
       wrap.appendChild(document.createTextNode(label));
       const input = document.createElement('input'); input.type='text'; input.value = valor || '';
@@ -725,24 +745,51 @@ function pedirDatosCliente(dirRec){
       extra.appendChild(wrap);
       return input;
     };
-    const inNombre = campo('Nombre', dirRec.nombre);
-    const inDireccion = campo('Dirección', dirRec.direccion);
-    const inBarrio = campo('Barrio 📋', dirRec.barrio, 'barriosList', 'Elige uno existente o escribe uno nuevo');
-    const inMunicipio = campo('Municipio 📋', dirRec.municipio, 'municipiosList', 'Elige uno existente o escribe uno nuevo');
+    const inNombre = campoTexto('Nombre', dirRec.nombre);
+    const inDireccion = campoTexto('Dirección', dirRec.direccion);
+    const inMunicipio = campoTexto('Municipio 📋', dirRec.municipio, 'municipiosList', 'Escribe el municipio');
+
+    const wrapBarrio = document.createElement('label'); wrapBarrio.className = 'field';
+    wrapBarrio.appendChild(document.createTextNode('Barrio'));
+    const selBarrio = document.createElement('select');
+    wrapBarrio.appendChild(selBarrio);
+    extra.appendChild(wrapBarrio);
+
+    const inBarrioNuevo = document.createElement('input'); inBarrioNuevo.type = 'text';
+    inBarrioNuevo.placeholder = 'Escribe el nombre del barrio nuevo (se agregará al catálogo)';
+    inBarrioNuevo.hidden = true;
+    extra.appendChild(inBarrioNuevo);
+
+    function refrescarBarrio(valorActual){
+      const anterior = valorActual !== undefined ? valorActual : (selBarrio.value !== '__otro__' ? selBarrio.value : '');
+      poblarSelectBarrio(selBarrio, inMunicipio.value, anterior);
+      inBarrioNuevo.hidden = selBarrio.value !== '__otro__';
+    }
+    refrescarBarrio(dirRec.barrio || '');
+    if (selBarrio.value === '__otro__') inBarrioNuevo.value = dirRec.barrio || '';
+
+    inMunicipio.addEventListener('input', ()=> refrescarBarrio());
+    selBarrio.addEventListener('change', ()=>{
+      inBarrioNuevo.hidden = selBarrio.value !== '__otro__';
+      if (selBarrio.value === '__otro__') inBarrioNuevo.focus();
+    });
 
     const acciones = document.getElementById('modalAcciones'); acciones.innerHTML = '';
     const btnNo = document.createElement('button'); btnNo.className='ghost small'; btnNo.textContent = 'Cancelar';
     const btnSi = document.createElement('button'); btnSi.className='primary small'; btnSi.textContent = 'Guardar';
     btnNo.addEventListener('click', ()=>{ overlay.hidden=true; resolve(null); });
-    btnSi.addEventListener('click', ()=>{
+    btnSi.addEventListener('click', async ()=>{
       const nombre = inNombre.value.trim();
       if (!nombre){ inNombre.focus(); return; }
+      const municipio = inMunicipio.value.trim();
+      const barrio = selBarrio.value === '__otro__' ? inBarrioNuevo.value.trim() : selBarrio.value;
+      if (selBarrio.value === '__otro__' && barrio) await agregarAlCatalogo(barrio, municipio);
       overlay.hidden = true;
       resolve({
         nombre,
         direccion: inDireccion.value.trim(),
-        barrio: inBarrio.value.trim(),
-        municipio: inMunicipio.value.trim()
+        barrio,
+        municipio
       });
     });
     acciones.appendChild(btnNo); acciones.appendChild(btnSi);
@@ -995,6 +1042,7 @@ let filtroMapaEstados=new Set(['pendiente']), filtroMapaPaquete='';
 let rutas=[];
 let modoOrdenPend={tipo:'alfabetico'};
 let filtroPendBarrio='', filtroPendMunicipio='', buscarPendTexto='';
+let catalogoBarrios=[]; // [{barrio, municipio}] — fuente única de verdad de qué barrios existen por municipio
 
 async function cargarEstado(){
   directorio = await getAll('directorio');
@@ -1005,6 +1053,114 @@ async function cargarEstado(){
   pinnedPendId = await getMeta('pinnedPendId', null);
   rutas = await getMeta('rutas', []);
   modoOrdenPend = await getMeta('modoOrdenPend', {tipo:'alfabetico'});
+
+  const catalogoGuardado = await getMeta('catalogoBarrios', null);
+  if (catalogoGuardado === null){
+    // Primera vez que corre esta versión: se siembra el catálogo con lo que ya existe en el directorio,
+    // para no marcar como "sin revisar" nada que el usuario ya tenía cargado y validado antes de este cambio.
+    // Deduplica por clave normalizada (ignorando mayúsculas/acentos/espacios) para no crear
+    // entradas separadas para lo que ya era el mismo barrio escrito de forma distinta.
+    const vistos = new Map();
+    catalogoBarrios = [];
+    directorio.forEach(d=>{
+      const barrio = (d.barrio||'').trim(), municipio = (d.municipio||'').trim();
+      if (!barrio || !municipio) return;
+      const clave = normalizarClaveBarrio(barrio) + '|||' + municipio;
+      if (vistos.has(clave)) return;
+      vistos.set(clave, true);
+      catalogoBarrios.push({barrio, municipio});
+    });
+    await setMeta('catalogoBarrios', catalogoBarrios);
+  } else {
+    catalogoBarrios = catalogoGuardado;
+  }
+}
+
+// ---------------- Catálogo de barrios (por municipio) ----------------
+// La comparación ignora mayúsculas/acentos/espacios repetidos: "BONANZA" y "Bonanza" cuentan
+// como el mismo barrio. Al encontrar coincidencia se usa siempre la grafía ya guardada en el
+// catálogo (auto-corrige la mayúscula/minúscula sin pedir revisión), evitando que una simple
+// diferencia de formato genere una entrada nueva por revisar.
+function normalizarClaveBarrio(s){
+  return quitarAcentos((s||'').trim().toLowerCase()).replace(/\s+/g,' ');
+}
+function buscarFormaCanonica(barrio, municipio){
+  barrio = (barrio||'').trim(); municipio = (municipio||'').trim();
+  if (!barrio) return '';
+  const claveB = normalizarClaveBarrio(barrio);
+  const encontrado = catalogoBarrios.find(c=>c.municipio===municipio && normalizarClaveBarrio(c.barrio)===claveB);
+  return encontrado ? encontrado.barrio : null;
+}
+function barrioEnCatalogo(barrio, municipio){
+  return buscarFormaCanonica(barrio, municipio) !== null;
+}
+function resolverBarrioParaGuardar(barrio, municipio){
+  const canonico = buscarFormaCanonica(barrio, municipio);
+  if (canonico === null) return {barrio: (barrio||'').trim(), sinRevisar: true};
+  return {barrio: canonico || (barrio||'').trim(), sinRevisar: false};
+}
+function barriosDelMunicipioCatalogo(municipio){
+  municipio = (municipio||'').trim();
+  return catalogoBarrios.filter(c=>c.municipio===municipio).map(c=>c.barrio).sort((a,b)=>a.localeCompare(b));
+}
+async function agregarAlCatalogo(barrio, municipio){
+  barrio = (barrio||'').trim(); municipio = (municipio||'').trim();
+  if (!barrio || !municipio) return;
+  if (barrioEnCatalogo(barrio, municipio)) return;
+  catalogoBarrios.push({barrio, municipio});
+  await setMeta('catalogoBarrios', catalogoBarrios);
+}
+// Llena un <select> de barrios con el catálogo del municipio dado. Si valorActual no
+// está en el catálogo (o no hay municipio todavía), deja el select en "+ Otro" para
+// que el usuario escriba el barrio nuevo en el input de texto que acompaña al select.
+function poblarSelectBarrio(selectEl, municipio, valorActual){
+  municipio = (municipio||'').trim();
+  if (!municipio){
+    selectEl.innerHTML = '<option value="">(escribe primero el municipio)</option>';
+    selectEl.disabled = true;
+    return;
+  }
+  selectEl.disabled = false;
+  const barrios = barriosDelMunicipioCatalogo(municipio);
+  selectEl.innerHTML = (barrios.length
+    ? barrios.map(b=>`<option value="${esc(b)}">${esc(b)}</option>`).join('')
+    : '<option value="">(sin barrios en el catálogo de este municipio)</option>') +
+    '<option value="__otro__">+ Otro (agregar nuevo)</option>';
+  if (valorActual && barrios.includes(valorActual)) selectEl.value = valorActual;
+  else if (valorActual) selectEl.value = '__otro__';
+}
+async function renombrarEnCatalogo(municipio, nombreAnterior, nombreNuevo){
+  municipio = (municipio||'').trim();
+  let cambio = false;
+  catalogoBarrios.forEach(c=>{
+    if (c.municipio===municipio && c.barrio===nombreAnterior){ c.barrio = nombreNuevo; cambio = true; }
+  });
+  if (!barrioEnCatalogo(nombreNuevo, municipio)){ catalogoBarrios.push({barrio:nombreNuevo, municipio}); cambio = true; }
+  // por si el renombre generó un duplicado exacto en el catálogo
+  const vistos = new Set();
+  catalogoBarrios = catalogoBarrios.filter(c=>{
+    const clave = c.barrio+'|||'+c.municipio;
+    if (vistos.has(clave)) return false;
+    vistos.add(clave);
+    return true;
+  });
+  if (cambio) await setMeta('catalogoBarrios', catalogoBarrios);
+  return cambio;
+}
+async function renombrarMunicipioEnCatalogo(nombreAnterior, nombreNuevo){
+  let cambio = false;
+  catalogoBarrios.forEach(c=>{
+    if (c.municipio===nombreAnterior){ c.municipio = nombreNuevo; cambio = true; }
+  });
+  const vistos = new Set();
+  catalogoBarrios = catalogoBarrios.filter(c=>{
+    const clave = c.barrio+'|||'+c.municipio;
+    if (vistos.has(clave)) return false;
+    vistos.add(clave);
+    return true;
+  });
+  if (cambio) await setMeta('catalogoBarrios', catalogoBarrios);
+  return cambio;
 }
 
 // ---------------- Rutas de entrega (barrios de un municipio, en el orden real de la ruta) ----------------
@@ -1025,11 +1181,7 @@ function compararPorRuta(recA, recB, ruta){
   return (recA.municipio||'').localeCompare(recB.municipio||'') || (recA.barrio||'').localeCompare(recB.barrio||'');
 }
 function barriosDelMunicipio(municipio){
-  return [...new Set(directorio
-    .filter(d=>(d.municipio||'').trim()===municipio)
-    .map(d=>(d.barrio||'').trim())
-    .filter(Boolean)
-  )].sort((a,b)=>a.localeCompare(b));
+  return barriosDelMunicipioCatalogo(municipio);
 }
 async function guardarRutas(){
   await setMeta('rutas', rutas);
@@ -1237,6 +1389,178 @@ function abrirModalBarriosRuta(ruta){
   overlay.hidden = false;
 }
 
+function pintarBarriosSinRevisar(){
+  const cont = document.getElementById('listaBarriosSinRevisar');
+  const empty = document.getElementById('emptyBarriosSinRevisar');
+  if (!cont || !empty) return;
+  cont.innerHTML = '';
+
+  const mapa = new Map();
+  directorio.forEach(d=>{
+    if (!d.barrioSinRevisar) return;
+    const barrio = (d.barrio||'').trim(), municipio = (d.municipio||'').trim();
+    const clave = barrio+'|||'+municipio;
+    if (!mapa.has(clave)) mapa.set(clave, {barrio, municipio, count:0});
+    mapa.get(clave).count++;
+  });
+  const grupos = [...mapa.values()].sort((a,b)=> a.municipio.localeCompare(b.municipio) || a.barrio.localeCompare(b.barrio));
+
+  empty.style.display = grupos.length ? 'none' : '';
+
+  grupos.forEach(g=>{
+    const card = document.createElement('div'); card.className = 'card';
+    card.innerHTML = `
+      <div class="who">
+        <span class="chip warn">Barrios nuevos por revisar</span>
+        <span class="name">${esc(g.barrio)}</span>
+        <span class="phone mono">${g.count} cliente(s)</span>
+      </div>
+      <div class="diffrow">
+        <div class="box"><div class="lbl">Municipio</div>${esc(g.municipio)}</div>
+        <div class="box"><div class="lbl">Barrio</div>${esc(g.barrio)}</div>
+      </div>
+      <div class="actions">
+        <button type="button" class="primary small" data-aceptar>Agregar al catálogo</button>
+        <button type="button" class="warn small" data-corregir>Corregir a...</button>
+      </div>`;
+    cont.appendChild(card);
+
+    card.querySelector('[data-aceptar]').addEventListener('click', async ()=>{
+      await agregarAlCatalogo(g.barrio, g.municipio);
+      const afectados = directorio.filter(d=>(d.barrio||'').trim()===g.barrio && (d.municipio||'').trim()===g.municipio && d.barrioSinRevisar);
+      for (const d of afectados){ d.barrioSinRevisar = false; await put('directorio', d); }
+      pintarTodo();
+      await mostrarAlerta(`"${g.barrio}" se agregó al catálogo de ${g.municipio}.`);
+    });
+
+    card.querySelector('[data-corregir]').addEventListener('click', async ()=>{
+      const nuevo = await pedirTexto(`¿Cuál es el nombre correcto para "${g.barrio}" (${g.municipio})?`, 'Escribe el nombre correcto', g.barrio, true);
+      if (nuevo === null) return;
+      const nombreCorregido = nuevo.trim();
+      if (!nombreCorregido) return;
+
+      const afectados = directorio.filter(d=>(d.barrio||'').trim()===g.barrio && (d.municipio||'').trim()===g.municipio);
+      await agregarAlCatalogo(nombreCorregido, g.municipio);
+      for (const d of afectados){
+        d.barrio = nombreCorregido;
+        d.barrioSinRevisar = false;
+        await put('directorio', d);
+      }
+
+      const cambioRutas = renombrarBarrioEnRutasSiQuedoSinUso(g.municipio, g.barrio, nombreCorregido);
+      if (cambioRutas) await guardarRutas();
+
+      pintarTodo();
+      await mostrarAlerta(`Se corrigieron ${afectados.length} registro(s) de "${g.barrio}" a "${nombreCorregido}".`);
+    });
+  });
+}
+
+// ---------------- Ver / gestionar el catálogo de barrios ----------------
+async function renombrarBarrioDesdeCatalogo(municipio, barrioViejo, barrioNuevo){
+  const afectados = directorio.filter(d=>(d.barrio||'').trim()===barrioViejo && (d.municipio||'').trim()===municipio);
+  const ok = await pedirConfirmacion(
+    `¿Renombrar "${barrioViejo}" a "${barrioNuevo}" en ${municipio}? Se actualizarán ${afectados.length} cliente(s).`,
+    'Renombrar', 'Cancelar'
+  );
+  if (!ok) return;
+  if (afectados.length) await guardarRespaldoAccion(`Renombrar barrio: "${barrioViejo}" → "${barrioNuevo}" (${municipio})`);
+  await conProgreso('Renombrando', afectados.length || 1, async actualizar=>{
+    for (let i=0;i<afectados.length;i++){
+      afectados[i].barrio = barrioNuevo;
+      afectados[i].barrioSinRevisar = false;
+      await put('directorio', afectados[i]);
+      if (i%20===0 || i===afectados.length-1){ actualizar(i+1); await new Promise(r=>setTimeout(r,0)); }
+    }
+    if (!afectados.length) actualizar(1);
+  });
+  await renombrarEnCatalogo(municipio, barrioViejo, barrioNuevo);
+  const cambioRutas = renombrarBarrioEnRutasSiQuedoSinUso(municipio, barrioViejo, barrioNuevo);
+  if (cambioRutas) await guardarRutas();
+  pintarTodo();
+  await mostrarAlerta(`Barrio renombrado. Se actualizaron ${afectados.length} cliente(s).`);
+}
+async function eliminarDelCatalogo(barrio, municipio){
+  const enUso = directorio.filter(d=>(d.barrio||'').trim()===barrio && (d.municipio||'').trim()===municipio).length;
+  const msg = enUso>0
+    ? `"${barrio}" todavía lo usan ${enUso} cliente(s) en ${municipio}. Si lo quitas del catálogo, esos clientes conservan el barrio, pero una futura importación con este mismo barrio se volverá a marcar como "por revisar". ¿Continuar?`
+    : `¿Quitar "${barrio}" del catálogo de ${municipio}?`;
+  const ok = await pedirConfirmacion(msg, 'Quitar', 'Cancelar');
+  if (!ok) return;
+  catalogoBarrios = catalogoBarrios.filter(c=>!(c.barrio===barrio && c.municipio===municipio));
+  await setMeta('catalogoBarrios', catalogoBarrios);
+  pintarTodo();
+}
+function pintarCatalogoBarrios(){
+  const cont = document.getElementById('listaCatalogoBarrios');
+  const empty = document.getElementById('emptyCatalogoBarrios');
+  if (!cont || !empty) return;
+  cont.innerHTML = '';
+
+  const municipios = [...new Set(catalogoBarrios.map(c=>c.municipio))].sort((a,b)=>a.localeCompare(b));
+  empty.style.display = municipios.length ? 'none' : '';
+
+  municipios.forEach(municipio=>{
+    const barrios = catalogoBarrios.filter(c=>c.municipio===municipio).map(c=>c.barrio);
+    const card = document.createElement('div'); card.className = 'card';
+    card.innerHTML = `
+      <div class="who">
+        <span class="name">${esc(municipio)}</span>
+        <span class="chip brand">${barrios.length} barrio(s)</span>
+      </div>
+      <div class="actions">
+        <button type="button" class="small" data-editarbarrioscat>✏️ Editar barrios</button>
+      </div>`;
+    cont.appendChild(card);
+
+    card.querySelector('[data-editarbarrioscat]').addEventListener('click', ()=> abrirModalCatalogoMunicipio(municipio));
+  });
+}
+
+function abrirModalCatalogoMunicipio(municipio){
+  const overlay = document.getElementById('modalOverlay');
+  document.getElementById('modalMensaje').textContent = `Barrios de "${municipio}"`;
+  const extra = document.getElementById('modalExtra'); extra.innerHTML = '';
+
+  const lista = document.createElement('div'); lista.className = 'orden-barrios-lista';
+  extra.appendChild(lista);
+  const barrios = catalogoBarrios.filter(c=>c.municipio===municipio).map(c=>c.barrio).sort((a,b)=>a.localeCompare(b));
+  if (!barrios.length){
+    const vacio = document.createElement('div'); vacio.className = 'empty';
+    vacio.textContent = 'Todavía no hay barrios en este municipio.';
+    extra.appendChild(vacio);
+  }
+  barrios.forEach(barrio=>{
+    const fila = document.createElement('div'); fila.className = 'orden-barrio-fila';
+    fila.innerHTML = `
+      <span class="orden-barrio-nombre">${esc(barrio)}</span>
+      <span class="orden-barrio-botones">
+        <button type="button" class="icon-btn" data-renombrar title="Renombrar">✏️</button>
+        <button type="button" class="icon-btn" data-eliminar title="Quitar del catálogo">🗑️</button>
+      </span>`;
+    lista.appendChild(fila);
+
+    fila.querySelector('[data-renombrar]').addEventListener('click', async ()=>{
+      const nuevo = await pedirTexto(`Nuevo nombre para "${barrio}" (${municipio})`, 'Escribe el nombre correcto', barrio, true);
+      if (nuevo === null){ abrirModalCatalogoMunicipio(municipio); return; }
+      const nombreNuevo = nuevo.trim();
+      if (!nombreNuevo || nombreNuevo===barrio){ abrirModalCatalogoMunicipio(municipio); return; }
+      await renombrarBarrioDesdeCatalogo(municipio, barrio, nombreNuevo);
+      abrirModalCatalogoMunicipio(municipio);
+    });
+    fila.querySelector('[data-eliminar]').addEventListener('click', async ()=>{
+      await eliminarDelCatalogo(barrio, municipio);
+      abrirModalCatalogoMunicipio(municipio);
+    });
+  });
+
+  const acciones = document.getElementById('modalAcciones'); acciones.innerHTML = '';
+  const btnCerrar = document.createElement('button'); btnCerrar.className = 'primary small'; btnCerrar.textContent = 'Cerrar';
+  btnCerrar.addEventListener('click', ()=>{ overlay.hidden = true; });
+  acciones.appendChild(btnCerrar);
+  overlay.hidden = false;
+}
+
 // ---------------- Semilla de ejemplo ----------------
 async function sembrarSiEsNecesario(){
   const yaExiste = await getMeta('sembrado', false);
@@ -1277,6 +1601,9 @@ async function procesarEntrante(entrante, asunto, tipo, remitente, paqueteId){
 
   if (!match){
     const nuevo = {id:uid(), ...entrante};
+    const rBarrio = resolverBarrioParaGuardar(nuevo.barrio, nuevo.municipio);
+    nuevo.barrio = rBarrio.barrio;
+    if (rBarrio.sinRevisar) nuevo.barrioSinRevisar = true;
     directorio.push(nuevo); await put('directorio', nuevo);
     const pend = {id:uid(), directorioId:nuevo.id, asunto, tipo, remitente, paqueteId, creado:new Date().toISOString()};
     pendientes.push(pend); await put('pendientes', pend);
@@ -1341,6 +1668,9 @@ async function resolverConflicto(confId, accion){
     const idx = directorio.findIndex(d=>d.id===conf.existenteId);
     if (idx>=0){
       directorio[idx] = {...directorio[idx], ...conf.entrante, id:directorio[idx].id};
+      const rBarrio = resolverBarrioParaGuardar(directorio[idx].barrio, directorio[idx].municipio);
+      directorio[idx].barrio = rBarrio.barrio;
+      directorio[idx].barrioSinRevisar = rBarrio.sinRevisar;
       await put('directorio', directorio[idx]);
       const pend = {id:uid(), directorioId:directorio[idx].id, asunto:conf.asunto||'', tipo:normalizarTipo(conf.tipo), remitente:conf.remitente||'', paqueteId:conf.paqueteId||'', creado:new Date().toISOString()};
       pendientes.push(pend); await put('pendientes', pend);
@@ -1429,12 +1759,13 @@ function fijarBadge(id, n){
 }
 function pintarTodo(){
   fijarBadge('badgePend', pendientes.length); fijarBadge('badgePendTop', pendientes.length);
-  fijarBadge('badgeConf', conflictos.length); fijarBadge('badgeConfTop', conflictos.length);
+  const totalRevisionConflictos = conflictos.length + contarBarriosSinRevisar();
+  fijarBadge('badgeConf', totalRevisionConflictos); fijarBadge('badgeConfTop', totalRevisionConflictos);
   document.getElementById('dirCount').textContent = directorio.length;
   const esDemo = directorio.some(d=>d.telefono && d.telefono.startsWith('300000000'));
   document.getElementById('demoNote').style.display = esDemo ? '' : 'none';
 
-  pintarPendientes(); pintarConflictos(); refrescarVistaHistorial(); actualizarDatalistRemitentes(); actualizarDatalistsDirectorio(); pintarRutas();
+  pintarPendientes(); pintarConflictos(); refrescarVistaHistorial(); actualizarDatalistRemitentes(); actualizarDatalistsDirectorio(); pintarRutas(); pintarBarriosSinRevisar(); pintarCatalogoBarrios();
 }
 
 function llenarSelectFiltro(select, valores, valorActual){
@@ -2377,6 +2708,18 @@ document.getElementById('btnLimpiarFiltrosPend').addEventListener('click', ()=>{
   pintarPendientes();
 });
 
+document.getElementById('mMunicipio').addEventListener('input', ()=>{
+  const sel = document.getElementById('mBarrio');
+  const anterior = sel.value !== '__otro__' ? sel.value : '';
+  poblarSelectBarrio(sel, document.getElementById('mMunicipio').value, anterior);
+  document.getElementById('mBarrioNuevo').hidden = sel.value !== '__otro__';
+});
+document.getElementById('mBarrio').addEventListener('change', ()=>{
+  const esOtro = document.getElementById('mBarrio').value === '__otro__';
+  document.getElementById('mBarrioNuevo').hidden = !esOtro;
+  if (esOtro) document.getElementById('mBarrioNuevo').focus();
+});
+
 document.getElementById('btnUsarUbicacionForm').addEventListener('click', async ()=>{
   try{
     const pos = await getPosicionActual();
@@ -2391,8 +2734,10 @@ document.getElementById('mTelefono').addEventListener('blur', ()=>{
   const existente = directorio.find(d=>claveTelefono(d.telefono)===claveTelefono(tel));
   if (!existente) return;
   document.getElementById('mNombre').value = existente.nombre||'';
-  document.getElementById('mBarrio').value = existente.barrio||'';
   document.getElementById('mMunicipio').value = existente.municipio||'';
+  poblarSelectBarrio(document.getElementById('mBarrio'), existente.municipio||'', existente.barrio||'');
+  document.getElementById('mBarrioNuevo').hidden = document.getElementById('mBarrio').value !== '__otro__';
+  if (document.getElementById('mBarrio').value === '__otro__') document.getElementById('mBarrioNuevo').value = existente.barrio||'';
   document.getElementById('mDireccion').value = existente.direccion||'';
   document.getElementById('mInfoAdicional').value = existente.infoAdicional||'';
   document.getElementById('mLat').value = existente.lat!=null ? existente.lat : '';
@@ -2400,7 +2745,7 @@ document.getElementById('mTelefono').addEventListener('blur', ()=>{
   mostrarToastImport(`Cliente ya registrado (${existente.nombre}) — se cargaron sus datos guardados.`, false);
 });
 
-['mNombre','mBarrio','mMunicipio'].forEach(id=>{
+['mNombre','mMunicipio'].forEach(id=>{
   document.getElementById(id).addEventListener('blur', e=>{
     e.target.value = properCase(e.target.value.trim());
   });
@@ -2425,7 +2770,9 @@ function datosManualLlenos(){
   return !!(document.getElementById('mNombre').value.trim() || document.getElementById('mTelefono').value.trim());
 }
 function limpiarFormularioManual(){
-  ['mNombre','mTelefono','mDireccion','mBarrio','mMunicipio','mInfoAdicional','mLat','mLon'].forEach(id=>document.getElementById(id).value='');
+  ['mNombre','mTelefono','mDireccion','mMunicipio','mInfoAdicional','mLat','mLon'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('mBarrioNuevo').value = ''; document.getElementById('mBarrioNuevo').hidden = true;
+  poblarSelectBarrio(document.getElementById('mBarrio'), '', '');
 }
 function limpiarArchivoCSV(){
   archivoCSVInfo = null;
@@ -2551,7 +2898,6 @@ function actualizarDatalistsDirectorio(){
       const opt = document.createElement('option'); opt.value = v; dl.appendChild(opt);
     });
   };
-  llenar('barriosList', 'barrio');
   llenar('municipiosList', 'municipio');
 }
 
@@ -2588,6 +2934,10 @@ async function procesarFilasCSV(info, meta){
     const pendientesDepurar = contarGruposPendientes();
     if (pendientesDepurar>0){
       resumen += `\n\n⚠️ Se detectaron ${pendientesDepurar} grupo(s) de Barrio/Municipio con variantes de escritura — revisa Configuración → "Depurar barrios y municipios".`;
+    }
+    const sinRevisar = contarBarriosSinRevisar();
+    if (sinRevisar>0){
+      resumen += `\n\n🆕 ${sinRevisar} barrio(s) nuevo(s) no estaban en el catálogo — revisa la pestaña Conflictos ("Barrios nuevos por revisar").`;
     }
     await mostrarAlerta(resumen);
     return true;
@@ -2627,11 +2977,16 @@ document.getElementById('btnProcesarCarga').addEventListener('click', async ()=>
   } else if (hayManual){
     const nombre = nombreManual, telefono = telefonoManual;
     if (!nombre || !telefono){ await mostrarAlerta('Nombre y teléfono son obligatorios.'); return; }
+    const municipio = properCase(document.getElementById('mMunicipio').value.trim());
+    const selBarrioVal = document.getElementById('mBarrio').value;
+    const barrio = selBarrioVal==='__otro__'
+      ? properCase(document.getElementById('mBarrioNuevo').value.trim())
+      : selBarrioVal;
+    if (selBarrioVal==='__otro__' && barrio) await agregarAlCatalogo(barrio, municipio);
     const entrante = {
       nombre: properCase(nombre), telefono,
       direccion: document.getElementById('mDireccion').value.trim(),
-      barrio: properCase(document.getElementById('mBarrio').value.trim()),
-      municipio: properCase(document.getElementById('mMunicipio').value.trim()),
+      barrio, municipio,
       infoAdicional: document.getElementById('mInfoAdicional').value.trim(),
       lat: document.getElementById('mLat').value ? parseFloat(document.getElementById('mLat').value) : null,
       lon: document.getElementById('mLon').value ? parseFloat(document.getElementById('mLon').value) : null
@@ -2705,13 +3060,17 @@ document.getElementById('fileImportDir').addEventListener('change', async e=>{
 
       const existente = directorio.find(d=>claveTelefono(d.telefono)===claveTelefono(telefono));
       if (existente){
-        existente.nombre=nombre; existente.direccion=direccion; existente.barrio=barrio; existente.municipio=municipio; existente.infoAdicional=infoAdicional;
+        const rBarrioExist = resolverBarrioParaGuardar(barrio, municipio);
+        existente.nombre=nombre; existente.direccion=direccion; existente.barrio=rBarrioExist.barrio; existente.municipio=municipio; existente.infoAdicional=infoAdicional;
+        existente.barrioSinRevisar = rBarrioExist.sinRevisar;
         if (lat!=null) existente.lat=lat;
         if (lon!=null) existente.lon=lon;
         await put('directorio', existente);
         nActualizados++;
       } else {
-        const nuevo = {id:uid(), nombre, telefono, direccion, barrio, municipio, infoAdicional, lat, lon};
+        const rBarrioNuevo = resolverBarrioParaGuardar(barrio, municipio);
+        const nuevo = {id:uid(), nombre, telefono, direccion, barrio:rBarrioNuevo.barrio, municipio, infoAdicional, lat, lon};
+        if (rBarrioNuevo.sinRevisar) nuevo.barrioSinRevisar = true;
         directorio.push(nuevo); await put('directorio', nuevo);
         nNuevos++;
       }
@@ -2722,6 +3081,10 @@ document.getElementById('fileImportDir').addEventListener('change', async e=>{
     const pendientesDepurar = contarGruposPendientes();
     if (pendientesDepurar>0){
       msgResumen += `\n\n⚠️ Se detectaron ${pendientesDepurar} grupo(s) de Barrio/Municipio con variantes de escritura — revisa Configuración → "Depurar barrios y municipios".`;
+    }
+    const sinRevisar = contarBarriosSinRevisar();
+    if (sinRevisar>0){
+      msgResumen += `\n\n🆕 ${sinRevisar} barrio(s) nuevo(s) no estaban en el catálogo — revisa la pestaña Conflictos ("Barrios nuevos por revisar").`;
     }
     await mostrarAlerta(msgResumen);
   }catch(err){
@@ -3049,6 +3412,8 @@ document.getElementById('btnNormalizarDir').addEventListener('click', async ()=>
 
   let nCambiados = 0;
   const total = directorio.length;
+  const cambiosBarrio = new Set(); // "municipioNuevo|||barrioViejo|||barrioNuevo"
+  const cambiosMunicipio = new Set(); // "municipioViejo|||municipioNuevo"
   await conProgreso('Normalizando', total, async actualizar=>{
     for (let i=0;i<total;i++){
       const d = directorio[i];
@@ -3056,6 +3421,8 @@ document.getElementById('btnNormalizarDir').addEventListener('click', async ()=>
       const barrio = normalizarValorTexto(d.barrio);
       const municipio = normalizarValorTexto(d.municipio);
       if (nombre!==d.nombre || barrio!==d.barrio || municipio!==d.municipio){
+        if (barrio!==d.barrio){ cambiosBarrio.add(municipio+'|||'+d.barrio+'|||'+barrio); d.barrioSinRevisar = false; }
+        if (municipio!==d.municipio) cambiosMunicipio.add(d.municipio+'|||'+municipio);
         d.nombre = nombre; d.barrio = barrio; d.municipio = municipio;
         await put('directorio', d);
         nCambiados++;
@@ -3063,6 +3430,15 @@ document.getElementById('btnNormalizarDir').addEventListener('click', async ()=>
       if (i%20===0 || i===total-1){ actualizar(i+1); await new Promise(r=>setTimeout(r,0)); }
     }
   });
+
+  for (const clave of cambiosBarrio){
+    const [municipio, viejo, nuevo] = clave.split('|||');
+    await renombrarEnCatalogo(municipio, viejo, nuevo);
+  }
+  for (const clave of cambiosMunicipio){
+    const [viejo, nuevo] = clave.split('|||');
+    await renombrarMunicipioEnCatalogo(viejo, nuevo);
+  }
 
   pintarTodo();
   await mostrarAlerta(`Normalización completa: se actualizaron ${nCambiados} de ${total} registro(s). Si algo no quedó como esperabas, usa el botón "Deshacer".`);
@@ -3088,6 +3464,14 @@ function contarGruposPendientes(){
     total += grupos.filter(g=>!gruposDescartados.has(firmaGrupo(campo, g))).length;
   });
   return total;
+}
+function contarBarriosSinRevisar(){
+  const vistos = new Set();
+  directorio.forEach(d=>{
+    if (!d.barrioSinRevisar) return;
+    vistos.add((d.barrio||'').trim() + '|||' + (d.municipio||'').trim());
+  });
+  return vistos.size;
 }
 async function guardarDescartados(){
   await setMeta('depurarDescartados', [...gruposDescartados]);
@@ -3140,6 +3524,7 @@ async function corregirValorPuntual(campo, valorViejo, valorNuevo){
   await conProgreso('Corrigiendo', afectados.length, async actualizar=>{
     for (let i=0;i<afectados.length;i++){
       afectados[i][campo] = valorNuevo;
+      if (campo==='barrio') afectados[i].barrioSinRevisar = false;
       await put('directorio', afectados[i]);
       if (i%20===0 || i===afectados.length-1){ actualizar(i+1); await new Promise(r=>setTimeout(r,0)); }
     }
@@ -3149,10 +3534,12 @@ async function corregirValorPuntual(campo, valorViejo, valorNuevo){
   if (campo==='barrio'){
     const municipiosAfectados = [...new Set(afectados.map(d=>(d.municipio||'').trim()).filter(Boolean))];
     for (const m of municipiosAfectados){
+      await renombrarEnCatalogo(m, valorViejo, valorNuevo);
       if (renombrarBarrioEnRutasSiQuedoSinUso(m, valorViejo, valorNuevo)) cambioRutas = true;
     }
-  } else if (renombrarMunicipioEnRutasSiQuedoSinUso(valorViejo, valorNuevo)){
-    cambioRutas = true;
+  } else {
+    await renombrarMunicipioEnCatalogo(valorViejo, valorNuevo);
+    if (renombrarMunicipioEnRutasSiQuedoSinUso(valorViejo, valorNuevo)) cambioRutas = true;
   }
   if (cambioRutas) await guardarRutas();
 
@@ -3265,6 +3652,7 @@ function pintarGruposDepurar(){
       await conProgreso('Unificando', afectados.length, async actualizar=>{
         for (let i=0;i<afectados.length;i++){
           afectados[i][campo] = canonico;
+          if (campo==='barrio') afectados[i].barrioSinRevisar = false;
           await put('directorio', afectados[i]);
           if (i%20===0 || i===afectados.length-1){ actualizar(i+1); await new Promise(r=>setTimeout(r,0)); }
         }
@@ -3274,11 +3662,13 @@ function pintarGruposDepurar(){
         const municipiosAfectados = [...new Set(afectados.map(d=>(d.municipio||'').trim()).filter(Boolean))];
         for (const m of municipiosAfectados){
           for (const viejo of variantesRaw){
+            await renombrarEnCatalogo(m, viejo, canonico);
             if (renombrarBarrioEnRutasSiQuedoSinUso(m, viejo, canonico)) cambioRutas = true;
           }
         }
       } else {
         for (const viejo of variantesRaw){
+          await renombrarMunicipioEnCatalogo(viejo, canonico);
           if (renombrarMunicipioEnRutasSiQuedoSinUso(viejo, canonico)) cambioRutas = true;
         }
       }
